@@ -54,6 +54,9 @@
               { name: "أ. معلم ثالث", ok: false, error: "لا يوجد تبويب «" + DATA.month + "»" }
             ] });
           if (p.action === "evals") return ok({ ok: true, teachers: ["أ. معلم تجريبي", "أ. معلمة تجريبية"], evals: EVALS });
+          if (p.action === "evalSetup") return ok({ ok: true, families: [{ id: "س.0001", name: "ولي أمر تجريبي" }], teachers: ["أ. معلم تجريبي", "أ. معلمة تجريبية"] });
+          if (p.action === "evalTeacherInfo") return ok({ ok: true, groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
+          if (p.action === "evalRegister") return ok({ ok: true, code: "ط.9100", familyId: "س.0002", existed: false, filled: [], message: "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" });
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }

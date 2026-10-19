@@ -725,12 +725,75 @@
         '<div class="note">قيّمه ' + esc(x.teacher) + " — " + esc(fmtDate(x.date)) + "</div>" +
         '<div class="rep">' + esc(x.report) + "</div>" +
         '<div class="asg"><select class="date-sel evT">' + opts(x.assigned) + '</select><input class="evN" placeholder="ملاحظة (اختياري)" value="' + esc(x.assignNote || "") + '" style="flex:1;min-width:120px">' +
-        '<button type="button" class="primary small" data-ev="وُزّع">توزيع</button><button type="button" class="ghost small" data-ev="لم يلتحق">لم يلتحق</button>' +
+        (x.status !== "وُزّع" ? '<button type="button" class="primary small" data-reg="1">➕ تسجيله وإضافته إلى معلم</button>' : "") +
+        '<button type="button" class="ghost small" data-ev="وُزّع">توزيع فقط</button><button type="button" class="ghost small" data-ev="لم يلتحق">لم يلتحق</button>' +
         (x.status !== "جديد" ? '<button type="button" class="ghost small" data-ev="جديد">إعادة إلى الجديد</button>' : "") + "</div></div>";
     }).join("") : '<div class="note">لا توجد تقييمات في هذا التصنيف.</div>';
   }
   $("evFilter").addEventListener("change", function () { if (EV) renderEvals(); });
+
+  // نموذج تسجيل الطالب المقيَّم وإضافته إلى معلم
+  var EVS = null;
+  function regForm(x) {
+    var cat = x.category === "تأسيس" ? "مجلس تأسيس" : "مجلس فردي";
+    return '<div class="reg-form card">' +
+      '<div class="row2"><div class="field"><label>اسم الطالب</label><input class="rf-name" value="' + esc(x.name) + '"></div>' +
+      '<div class="field"><label>العمر</label><input class="rf-age" value="' + esc(x.age || "") + '"></div></div>' +
+      '<div class="field"><label>ولي الأمر</label><input class="rf-parent" list="rfFamilies" placeholder="اكتب اسم ولي الأمر أو اختر أسرة مسجَّلة">' +
+      '<label class="chk"><input type="checkbox" class="rf-new"> أسرة جديدة</label></div>' +
+      '<div class="row2"><div class="field"><label>الباقة (عدد الحصص)</label><input class="rf-pkg" inputmode="decimal"></div>' +
+      '<div class="field"><label>سعر الحصة</label><input class="rf-price" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
+      '<div class="field"><label>المعلم</label><select class="rf-teacher date-sel"><option value="">— اختر —</option>' + (EVS ? EVS.teachers.map(function (n) { return "<option>" + esc(n) + "</option>"; }).join("") : "") + "</select></div>" +
+      '<div class="field"><label>طريقة الإضافة</label><select class="rf-mode date-sel"><option value="single">مجلس فردي</option><option value="newgroup">مجموعة جديدة</option>' +
+      '<option value="join">إلى مجموعة موجودة</option><option value="pair">مع طالب فردي ليصيرا مجموعة</option></select>' +
+      '<select class="rf-target date-sel" hidden></select></div>' +
+      '<div class="rf-new-unit"><div class="row2"><div class="field"><label>فئة المجلس</label><input class="rf-cat" value="' + esc(cat) + '" data-single="' + esc(cat) + '" data-group="مجموعة ' + esc(x.category) + '"></div>' +
+      '<div class="field"><label>المواعيد</label><input class="rf-days" placeholder="مثال: الأحد والأربعاء 5:00م"></div></div>' +
+      '<div class="field"><label>أجر الساعة للمعلم (اختياري)</label><input class="rf-rate" inputmode="decimal"></div></div>' +
+      '<div class="actions"><button type="button" class="primary small" data-regsave="1">تسجيل الطالب وإضافته</button> <button type="button" class="ghost small" data-regclose="1">إلغاء</button></div></div>';
+  }
+  function setupReady(cb) {
+    if (EVS) return cb();
+    api("evalSetup", {}).then(function (r) {
+      EVS = r;
+      var dl = document.getElementById("rfFamilies") || document.body.appendChild(Object.assign(document.createElement("datalist"), { id: "rfFamilies" }));
+      dl.innerHTML = r.families.map(function (f) { return '<option value="' + esc(f.name) + '">' + esc(f.id) + "</option>"; }).join("");
+      cb();
+    }).catch(function (e) { showMsg("⚠ " + e.message, false); });
+  }
+  function rfModeUI(f) {
+    var mode = f.querySelector(".rf-mode").value, tg = f.querySelector(".rf-target"), info = f._info;
+    tg.hidden = !(mode === "join" || mode === "pair");
+    f.querySelector(".rf-new-unit").hidden = mode === "join";
+    f.querySelector(".rf-days").closest(".field").hidden = mode === "pair";
+    var cat = f.querySelector(".rf-cat");
+    cat.value = mode === "single" ? cat.getAttribute("data-single") : cat.getAttribute("data-group");
+    if (!tg.hidden) {
+      var items = !info ? [] : mode === "join" ? info.groups.map(function (g) { return [g.start, g.label]; }) : info.singles.map(function (x) { return [x.code, x.label]; });
+      tg.innerHTML = info ? (items.length ? items.map(function (i) { return '<option value="' + esc(i[0]) + '">' + esc(i[1]) + "</option>"; }).join("") : "<option value=''>لا يوجد</option>") : "<option value=''>اختر المعلم أولًا</option>";
+    }
+  }
+  $("evList").addEventListener("change", function (e) {
+    var f = e.target.closest(".reg-form"); if (!f) return;
+    if (e.target.classList.contains("rf-mode")) rfModeUI(f);
+    if (e.target.classList.contains("rf-teacher")) {
+      f._info = null; rfModeUI(f);
+      if (!e.target.value) return;
+      api("evalTeacherInfo", { teacher: e.target.value }).then(function (r) { f._info = r; rfModeUI(f); })
+        .catch(function (e2) { showMsg("⚠ " + e2.message, false); });
+    }
+  });
   $("evList").addEventListener("click", function (e) {
+    var rg = e.target.closest("[data-reg]");
+    if (rg) {
+      var item = rg.closest(".ev-item");
+      if (item.querySelector(".reg-form")) return;
+      var x0 = EV.evals.filter(function (y) { return y.id === item.getAttribute("data-id"); })[0];
+      return setupReady(function () { item.insertAdjacentHTML("beforeend", regForm(x0)); rfModeUI(item.querySelector(".reg-form")); });
+    }
+    if (e.target.closest("[data-regclose]")) return e.target.closest(".reg-form").remove();
+    var sv = e.target.closest("[data-regsave]");
+    if (sv) return regSave(sv);
     var b = e.target.closest("[data-ev]"); if (!b) return;
     var it = b.closest(".ev-item"), st = b.getAttribute("data-ev"), teacher = it.querySelector(".evT").value;
     if (st === "وُزّع" && !teacher) return showMsg("⚠ اختر المعلم الذي يُوزَّع إليه الطالب.", false);
@@ -741,6 +804,26 @@
       renderEvals(); showMsg("✓ " + (st === "وُزّع" ? "وُزّع " + x.name + " إلى " + teacher + ". ثم أضِف الطالب إلى جدول المعلم من صفحة الإدارة بعد تسجيله." : "حُدّثت حالة " + x.name + "."), true);
     }).catch(function (e2) { b.disabled = false; showMsg("⚠ " + e2.message, false); });
   });
+
+  function regSave(btn) {
+    var f = btn.closest(".reg-form"), it = btn.closest(".ev-item"), q = function (c) { return f.querySelector(c).value.trim(); };
+    var mode = q(".rf-mode"), p = { id: it.getAttribute("data-id"), name: q(".rf-name"), age: q(".rf-age"), parent: q(".rf-parent"),
+      newFamily: f.querySelector(".rf-new").checked, package: q(".rf-pkg"), price: q(".rf-price"), teacher: q(".rf-teacher"), mode: mode,
+      category: q(".rf-cat"), days: q(".rf-days"), rate: q(".rf-rate"), note: it.querySelector(".evN").value };
+    if (mode === "join") p.groupStart = q(".rf-target");
+    if (mode === "pair") p.pairCode = q(".rf-target");
+    if (!p.parent) return showMsg("⚠ اكتب اسم ولي الأمر.", false);
+    if (p.price === "") return showMsg("⚠ اكتب سعر الحصة (0 إن كان تطوّعًا).", false);
+    if (!p.teacher) return showMsg("⚠ اختر المعلم.", false);
+    if ((mode === "join" && !p.groupStart) || (mode === "pair" && !p.pairCode)) return showMsg("⚠ اختر " + (mode === "join" ? "المجموعة" : "الطالب الفردي") + ".", false);
+    btn.disabled = true; btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
+    api("evalRegister", p).then(function (r) {
+      var x = EV.evals.filter(function (y) { return y.id === p.id; })[0];
+      x.status = "وُزّع"; x.assigned = p.teacher; x.assignNote = "الكود " + r.code;
+      renderEvals();
+      showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message, true);
+    }).catch(function (e) { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; showMsg("⚠ " + e.message, false); });
+  }
 
   function archSearch() {
     var q = $("aQ").value.trim();

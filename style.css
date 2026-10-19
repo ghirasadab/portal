@@ -213,3 +213,8 @@ html.ga-dark .tab.on { color: #0b2210; }
 .brand-logo img { display: block; height: 46px; width: auto; }
 .brand .brand-sub { border-inline-start: 1px solid rgba(255,255,255,.35); padding-inline-start: 10px; font-weight: 600; }
 @media (max-width: 520px) { .brand-logo img { height: 36px; } .brand .brand-sub { font-size: 11.5px; padding-inline-start: 7px; } .brand { gap: 7px; } }
+.reg-form { margin-top: 10px; background: var(--mint); }
+.reg-form .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; margin-top: 6px; }
+.reg-form .rf-target { margin-top: 6px; }
+.msg { white-space: pre-line; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
