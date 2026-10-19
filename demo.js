@@ -10,6 +10,7 @@
   for (var i = 1; i <= n; i++) { var d = new Date(y, mo, i); dates.push({ key: key(d), weekday: wds[d.getDay()] }); }
   var tw = wds[today.getDay()];
   function cells(pattern) { return dates.map(function (d, i) { return i < today.getDate() - 1 && pattern(i) ? [pattern(i), "done"] : ["", ""]; }); }
+  var EVALS = [{ id: "ت.1", date: "2026-10-18", teacher: "أ. معلمة تجريبية", name: "طالبة مقيَّمة", gender: "أنثى", age: "10 سنوات", category: "أدب", report: "تقرأ قراءة جيدة مع أخطاء قليلة في الضبط.\nيُقترح لها مجموعة الأدب المتوسطة.", status: "جديد" }];
   var DATA = { hasEval: true, evals: {},
     teacher: "أ. معلم تجريبي", onLeave: false, today: key(today), todayWeekday: tw,
     months: [months[mo] + " " + y], month: months[mo] + " " + y, dates: dates,
@@ -52,6 +53,8 @@
               { name: "أ. معلمة تجريبية", ok: true, onLeave: true, sessions: 29, hours: 31.08, evaluations: 0, bonus: 250, salary: 3435.83, beforeBonus: 3185.83, bonusLimit: 25, bonusValue: 250, counts: { done: 27, makeup: 2, absent: 0, pTeacher: 0, pStudent: 1 }, lastRecord: dates[Math.max(0, today.getDate() - 9)].key, today: { scheduled: 2, recorded: 0, extra: 0, pending: ["مجموعة أدب: طالبة أولى، طالبة ثانية", "طالبة رابعة"] } },
               { name: "أ. معلم ثالث", ok: false, error: "لا يوجد تبويب «" + DATA.month + "»" }
             ] });
+          if (p.action === "evals") return ok({ ok: true, teachers: ["أ. معلم تجريبي", "أ. معلمة تجريبية"], evals: EVALS });
+          if (p.action === "assignEval") return ok({ ok: true, saved: true });
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }
         if (p.action === "init") return ok(JSON.parse(JSON.stringify(Object.assign({ ok: true, admin: ADMIN_DEMO }, DATA, ADMIN_DEMO ? { teacher: p.as } : {}))));
@@ -61,6 +64,7 @@
             { name: "طالبة ثانية", code: "ط.9003", done: 5, makeup: 0, absent: 2, pTeacher: 1, pStudent: 2, minutes: 300, last: dates[Math.max(0, today.getDate() - 6)].key },
             { name: "طالب تأسيس", code: "ط.9005", done: 0, makeup: 0, absent: 0, pTeacher: 0, pStudent: 0, minutes: 0, last: "" }] } });
         if (p.action === "evaluation") { DATA.evals = DATA.evals || {}; DATA.evals[p.date] = Number(p.count) || ""; return ok({ ok: true, saved: true, date: p.date, count: Number(p.count) || 0 }); }
+        if (p.action === "addEval") { DATA.evals[p.date] = (Number(DATA.evals[p.date]) || 0) + 1; EVALS.unshift({ id: "ت." + Date.now(), date: p.date, teacher: "أ. معلم تجريبي", name: p.name, gender: p.gender, age: p.age, category: p.category, report: p.report, status: "جديد" }); return ok({ ok: true, saved: true, count: DATA.evals[p.date] }); }
         if (p.action === "history") return ok({ ok: true, reports: reports[p.unitKey] || [] });
         if (p.action === "save") {
           var colors = {}; DATA.statuses.forEach(function (s) { colors[s.key] = s; });

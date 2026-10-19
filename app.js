@@ -152,8 +152,8 @@
         '</div><div class="mt">' + esc(u.cat) + (u.days ? " — " + esc(u.days) : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
     }
     $("evalBox").hidden = !D.hasEval;
-    if (document.activeElement !== $("evalN")) $("evalN").value = (D.evals || {})[dateKey] || "";
-    $("evalMsg").textContent = "";
+    var ne = Number((D.evals || {})[dateKey]) || 0;
+    $("evalCount").textContent = ne ? "تقييمات هذا اليوم: " + ne : "";
     $("todayHead").textContent = "مجالس " + (dateKey === D.today ? "اليوم" : "يوم " + weekdayOf(dateKey));
     $("unitsToday").innerHTML = today.length ? today.map(li).join("") : '<li class="empty">لا توجد مجالس مجدولة في هذا اليوم.</li>';
     $("unitsOther").innerHTML = other.length ? other.map(li).join("") : '<li class="empty">—</li>';
@@ -165,7 +165,7 @@
     unit = u; armed = false; lastSaved = null;
     clearMsg();
     $("app").classList.add("picked");
-    $("empty").hidden = true; $("form").hidden = false;
+    $("empty").hidden = true; $("form").hidden = false; $("evalForm").hidden = true;
     $("uCat").textContent = u.cat;
     $("uTitle").textContent = u.title;
     var parents = u.members.map(function (m) { return m.parent; }).filter(Boolean);
@@ -212,7 +212,7 @@
   function closeUnit() {
     unit = null;
     $("app").classList.remove("picked");
-    $("form").hidden = true; $("empty").hidden = false;
+    $("form").hidden = true; $("evalForm").hidden = true; $("empty").hidden = false;
     renderUnits();
   }
 
@@ -406,14 +406,35 @@
     $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") onUnitClick(e); });
   });
   $("q").addEventListener("input", renderUnits);
-  // تسجيل عدد التقييمات في اليوم المختار
-  $("evalSave").addEventListener("click", function () {
-    var n = String($("evalN").value || "").replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x0660; }).trim() || "0";
-    var btn = $("evalSave"); btn.disabled = true; $("evalMsg").textContent = "جارٍ الحفظ…";
-    api("evaluation", { month: D.month, date: dateKey, count: n, note: $("evalNote").value }).then(function (r) {
-      D.evals = D.evals || {}; if (r.count) D.evals[dateKey] = r.count; else delete D.evals[dateKey];
-      $("evalNote").value = ""; $("evalMsg").textContent = "✓ حُفظ عدد التقييمات (" + (r.count || 0) + ") ليوم " + weekdayOf(dateKey) + ".";
-    }).catch(function (e) { $("evalMsg").textContent = "⚠ " + e.message; }).then(function () { btn.disabled = false; });
+  // تقييم طالب جديد
+  function segVal(id) { var b = $(id).querySelector("button.on"); return b ? b.getAttribute("data-v") : ""; }
+  ["evGender", "evCat"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      $(id).querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    });
+  });
+  $("evalOpen").addEventListener("click", function () {
+    if (unit) closeUnit();
+    $("empty").hidden = true; $("form").hidden = true; $("evalForm").hidden = false;
+    $("evDate").textContent = weekdayOf(dateKey) + " " + fmtDate(dateKey);
+    $("evName").focus();
+  });
+  $("evBack").addEventListener("click", closeUnit);
+  $("evSave").addEventListener("click", function () {
+    var p = { month: D.month, date: dateKey, name: $("evName").value.trim(), gender: segVal("evGender"), age: $("evAge").value.trim(), category: segVal("evCat"), report: $("evReport").value.trim() };
+    if (!p.name) return showMsg("⚠ اكتب اسم الطالب.", false);
+    if (!p.gender) return showMsg("⚠ اختر نوع الطالب.", false);
+    if (!p.category) return showMsg("⚠ اختر الفئة.", false);
+    if (!p.report) return showMsg("⚠ اكتب تقرير التقييم.", false);
+    var btn = $("evSave"); btn.disabled = true; btn.textContent = "جارٍ الحفظ…";
+    api("addEval", p).then(function (r) {
+      D.evals = D.evals || {}; D.evals[dateKey] = r.count;
+      ["evName", "evAge", "evReport"].forEach(function (k) { $(k).value = ""; });
+      ["evGender", "evCat"].forEach(function (id) { $(id).querySelectorAll("button").forEach(function (x) { x.classList.remove("on"); }); });
+      closeUnit(); renderUnits();
+      showMsg("✓ حُفظ تقييم " + p.name + "، وأُرسل إلى الإدارة.", true);
+    }).catch(function (e) { showMsg("⚠ " + e.message, false); }).then(function () { btn.disabled = false; btn.textContent = "حفظ التقييم"; });
   });
   $("date").addEventListener("change", function () { setDate($("date").value); });
   document.querySelectorAll("[data-day]").forEach(function (b) {
@@ -678,12 +699,49 @@
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      $("aSum").hidden = t === "arch"; $("aArch").hidden = t !== "arch";
-      $("aMonth").hidden = t === "arch"; $("aFresh").hidden = t === "arch";
+      var own = t === "arch" || t === "evals";
+      $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals";
+      $("aMonth").hidden = own; $("aFresh").hidden = own;
+      if (t === "evals") loadEvals();
       document.querySelectorAll("[data-sec]").forEach(function (x) { x.hidden = x.getAttribute("data-sec") !== t; });
       if (t === "arch") $("aQ").focus();
     });
   });
+  // تقييمات الطلاب الجدد وتوزيعهم
+  var EV = null;
+  function loadEvals() {
+    $("evList").innerHTML = '<div class="loading">جارٍ التحميل…</div>';
+    api("evals", {}).then(function (r) { EV = r; renderEvals(); })
+      .catch(function (e) { $("evList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  function renderEvals() {
+    var f = $("evFilter").value;
+    var list = EV.evals.filter(function (x) { return !f || x.status === f; });
+    var opts = function (sel) { return '<option value="">— المعلم —</option>' + EV.teachers.map(function (n) { return "<option" + (n === sel ? " selected" : "") + ">" + esc(n) + "</option>"; }).join(""); };
+    $("evList").innerHTML = list.length ? list.map(function (x) {
+      return '<div class="ev-item" data-id="' + esc(x.id) + '"><div class="hd">' + esc(x.name) + ' <span class="badge">' + esc(x.gender) + "</span>" +
+        (x.age ? ' <span class="badge">' + esc(x.age) + "</span>" : "") + ' <span class="badge">' + esc(x.category) + "</span>" +
+        ' <span class="badge' + (x.status === "جديد" ? " warn" : "") + '">' + esc(x.status) + (x.assigned ? ": " + esc(x.assigned) : "") + "</span></div>" +
+        '<div class="note">قيّمه ' + esc(x.teacher) + " — " + esc(fmtDate(x.date)) + "</div>" +
+        '<div class="rep">' + esc(x.report) + "</div>" +
+        '<div class="asg"><select class="date-sel evT">' + opts(x.assigned) + '</select><input class="evN" placeholder="ملاحظة (اختياري)" value="' + esc(x.assignNote || "") + '" style="flex:1;min-width:120px">' +
+        '<button type="button" class="primary small" data-ev="وُزّع">توزيع</button><button type="button" class="ghost small" data-ev="لم يلتحق">لم يلتحق</button>' +
+        (x.status !== "جديد" ? '<button type="button" class="ghost small" data-ev="جديد">إعادة إلى الجديد</button>' : "") + "</div></div>";
+    }).join("") : '<div class="note">لا توجد تقييمات في هذا التصنيف.</div>';
+  }
+  $("evFilter").addEventListener("change", function () { if (EV) renderEvals(); });
+  $("evList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-ev]"); if (!b) return;
+    var it = b.closest(".ev-item"), st = b.getAttribute("data-ev"), teacher = it.querySelector(".evT").value;
+    if (st === "وُزّع" && !teacher) return showMsg("⚠ اختر المعلم الذي يُوزَّع إليه الطالب.", false);
+    b.disabled = true;
+    api("assignEval", { id: it.getAttribute("data-id"), status: st, teacher: st === "جديد" ? "" : teacher, note: it.querySelector(".evN").value }).then(function () {
+      var x = EV.evals.filter(function (y) { return y.id === it.getAttribute("data-id"); })[0];
+      x.status = st; x.assigned = st === "جديد" ? "" : teacher; x.assignNote = it.querySelector(".evN").value;
+      renderEvals(); showMsg("✓ " + (st === "وُزّع" ? "وُزّع " + x.name + " إلى " + teacher + ". ثم أضِف الطالب إلى جدول المعلم من صفحة الإدارة بعد تسجيله." : "حُدّثت حالة " + x.name + "."), true);
+    }).catch(function (e2) { b.disabled = false; showMsg("⚠ " + e2.message, false); });
+  });
+
   function archSearch() {
     var q = $("aQ").value.trim();
     if (q.length < 2) return showMsg("⚠ اكتب حرفين على الأقل للبحث.", false);

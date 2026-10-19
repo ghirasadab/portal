@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=202610192319">
+<link rel="stylesheet" href="style.css?v=202610192323">
 </head>
 <body>
 <header class="top">
@@ -63,6 +63,7 @@
       <button type="button" class="tab" data-atab="stats">الإحصاءات</button>
       <button type="button" class="tab" data-atab="pay">الرواتب</button>
       <button type="button" class="tab" data-atab="money">المالية</button>
+      <button type="button" class="tab" data-atab="evals">التقييمات</button>
       <button type="button" class="tab" data-atab="arch">الأرشيف</button>
       <span class="spacer"></span>
       <select id="aMonth" class="date-sel" aria-label="الشهر"></select>
@@ -116,6 +117,21 @@
       </div>
     </div>
 
+    <div id="aEvals" hidden>
+      <section class="card">
+        <div class="min-row" style="justify-content:space-between">
+          <h2 style="margin:0">تقييمات الطلاب الجدد</h2>
+          <select id="evFilter" class="date-sel" aria-label="تصفية">
+            <option value="جديد">لم يُوزَّعوا بعد</option>
+            <option value="وُزّع">وُزّعوا</option>
+            <option value="لم يلتحق">لم يلتحقوا</option>
+            <option value="">الكل</option>
+          </select>
+        </div>
+        <div id="evList"><div class="loading">جارٍ التحميل…</div></div>
+      </section>
+    </div>
+
     <div id="aArch" hidden>
       <section class="card">
         <h2>البحث في أرشيف التقارير</h2>
@@ -150,13 +166,8 @@
         <input id="q" type="search" placeholder="ابحث عن طالب أو مجموعة" autocomplete="off">
       </div>
       <div class="eval-box" id="evalBox" hidden>
-        <label for="evalN">التقييمات في هذا اليوم</label>
-        <div class="min-row">
-          <input id="evalN" type="text" inputmode="numeric" placeholder="0" style="width:70px">
-          <input id="evalNote" type="text" placeholder="لمن؟ (اختياري)" style="flex:1">
-          <button type="button" class="primary small" id="evalSave">حفظ</button>
-        </div>
-        <div class="note" id="evalMsg"></div>
+        <button type="button" class="primary small" id="evalOpen">➕ تقييم طالب جديد</button>
+        <span class="note" id="evalCount"></span>
       </div>
       <h2 id="todayHead">مجالس اليوم</h2>
       <ul id="unitsToday" class="units"></ul>
@@ -169,6 +180,22 @@
       <div id="empty" class="empty-state">
         <div class="empty-icon">📖</div>
         <p>اختر مجلسًا من القائمة لتسجيل الحصة وكتابة التقرير.</p>
+      </div>
+
+      <div id="evalForm" hidden>
+        <div class="unit-head">
+          <div><div class="unit-cat">تقييم طالب جديد</div><h1 class="unit-title" id="evDate"></h1></div>
+          <button type="button" class="link-btn" id="evBack">→ رجوع</button>
+        </div>
+        <div class="field"><label for="evName">اسم الطالب</label><input id="evName" type="text" autocomplete="off"></div>
+        <div class="row2">
+          <div class="field"><label>النوع</label><div class="seg" id="evGender"><button type="button" data-v="ذكر">ذكر</button><button type="button" data-v="أنثى">أنثى</button></div></div>
+          <div class="field"><label for="evAge">العمر</label><input id="evAge" type="text" inputmode="numeric" placeholder="مثال: 9 سنوات"></div>
+        </div>
+        <div class="field"><label>الفئة</label><div class="seg" id="evCat"><button type="button" data-v="أدب">أدب</button><button type="button" data-v="تأسيس">تأسيس</button></div></div>
+        <div class="field"><label for="evReport">تقرير التقييم المفصّل</label><textarea id="evReport" rows="8" placeholder="المستوى في القراءة والكتابة والفهم، ونقاط القوة والضعف، والمجلس أو المستوى المقترح له…"></textarea></div>
+        <div class="actions"><button type="button" class="primary" id="evSave">حفظ التقييم</button></div>
+        <div class="note">يُحفظ التقييم عند الإدارة لتوزيع الطالب، ويُضاف إلى عدد تقييماتك في هذا اليوم.</div>
       </div>
 
       <div id="form" hidden>
@@ -233,8 +260,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610192319"></script>
-<script src="demo.js?v=202610192319"></script>
-<script src="app.js?v=202610192319"></script>
+<script src="config.js?v=202610192323"></script>
+<script src="demo.js?v=202610192323"></script>
+<script src="app.js?v=202610192323"></script>
 </body>
 </html>

@@ -202,3 +202,11 @@ html.ga-dark .tab.on { color: #0b2210; }
 #myStats .cards { margin-bottom: 12px; }
 .eval-box { background: var(--mint); border-radius: 12px; padding: 8px 10px; margin: 8px 0 12px; }
 .eval-box label { font-size: 13px; font-weight: 700; }
+.eval-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1; font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.seg button.on { background: var(--green); color: #fff; border-color: var(--green); }
+.ev-item { border-top: 1px dashed var(--line); padding: 10px 0; }
+.ev-item .hd { font-weight: 700; }
+.ev-item .rep { white-space: pre-wrap; font-size: 14px; margin: 6px 0; }
+.ev-item .asg { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
