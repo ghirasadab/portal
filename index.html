@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>بوابة المعلمين — غراس الأدب</title>
+<script>
+  // الوضع الغامق: نفس إعداد موقع غراس الأدب
+  (function () {
+    try {
+      var t = localStorage.getItem("ga-theme");
+      if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.classList.add("ga-dark");
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="logo">غ</div>
+      <div>
+        <div class="brand-name">غراس الأدب</div>
+        <div class="brand-sub">بوابة المعلمين</div>
+      </div>
+    </div>
+    <div class="top-tools">
+      <span class="who" id="who"></span>
+      <select id="month" class="month-sel" aria-label="الشهر" hidden></select>
+      <button type="button" class="icon-btn" id="refresh" title="تحديث" aria-label="تحديث">⟳</button>
+      <button type="button" class="icon-btn" id="theme" title="الوضع الغامق" aria-label="تبديل الوضع الغامق">◐</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="msg" class="msg" role="status" hidden></div>
+
+  <section id="gate" class="card gate" hidden>
+    <h1>مرحبًا بك في بوابة المعلمين</h1>
+    <p id="gateText">افتح البوابة من الرابط الخاص بك الذي أرسلته إليك الإدارة.</p>
+  </section>
+
+  <div id="loading" class="loading">جارٍ تحميل مجالسك…</div>
+
+  <div id="app" class="layout" hidden>
+    <!-- اختيار اليوم والمجلس -->
+    <section class="card side">
+      <div class="leave" id="leaveNote" hidden>أنت مسجَّل في إجازة حاليًا. يمكنك التسجيل كالمعتاد إن عقدت مجلسًا.</div>
+      <h2>اليوم</h2>
+      <div class="day-row">
+        <button type="button" class="chip" data-day="today">اليوم</button>
+        <button type="button" class="chip" data-day="yesterday">أمس</button>
+        <select id="date" class="date-sel" aria-label="التاريخ"></select>
+      </div>
+      <div class="search">
+        <input id="q" type="search" placeholder="ابحث عن طالب أو مجموعة" autocomplete="off">
+      </div>
+      <h2 id="todayHead">مجالس اليوم</h2>
+      <ul id="unitsToday" class="units"></ul>
+      <h2 id="otherHead">باقي المجالس</h2>
+      <ul id="unitsOther" class="units"></ul>
+    </section>
+
+    <!-- تسجيل المجلس -->
+    <section class="card main" id="panel">
+      <div id="empty" class="empty-state">
+        <div class="empty-icon">📖</div>
+        <p>اختر مجلسًا من القائمة لتسجيل الحصة وكتابة التقرير.</p>
+      </div>
+
+      <div id="form" hidden>
+        <div class="unit-head">
+          <div>
+            <div class="unit-cat" id="uCat"></div>
+            <h1 class="unit-title" id="uTitle"></h1>
+            <div class="unit-meta" id="uMeta"></div>
+          </div>
+          <button type="button" class="link-btn" id="back">→ رجوع</button>
+        </div>
+
+        <details class="last" id="lastBox" hidden>
+          <summary>آخر تقرير لهذا المجلس <span id="lastDate"></span></summary>
+          <div id="lastBody"></div>
+          <button type="button" class="link-btn" id="historyBtn">عرض كل التقارير</button>
+          <div id="historyBody"></div>
+        </details>
+
+        <div class="existing" id="existing" hidden></div>
+
+        <h2>حالة المجلس — <span id="dateLabel"></span></h2>
+        <div class="statuses" id="statuses"></div>
+
+        <div id="minutesBox" class="field" hidden>
+          <label for="minutes">مدة الحصة (بالدقائق)</label>
+          <div class="min-row">
+            <input id="minutes" type="text" inputmode="numeric" placeholder="60">
+            <button type="button" class="chip" data-min="30">30</button>
+            <button type="button" class="chip" data-min="45">45</button>
+            <button type="button" class="chip" data-min="60">60</button>
+          </div>
+        </div>
+
+        <div id="membersBox" hidden>
+          <label>الطلاب في هذا المجلس</label>
+          <div class="note">اكتب نصيب كل طالب من الدقائق كما تكتبه في الشيت، وغيّر حالة من غاب منهم.</div>
+          <div id="members" class="members"></div>
+        </div>
+
+        <div id="reportBox" class="report" hidden>
+          <h2>تقرير الحصة</h2>
+          <div class="field"><label for="rStudied">ما درسناه</label><textarea id="rStudied" rows="3"></textarea></div>
+          <div class="field"><label for="rPerf" id="rPerfLbl">أداء الطالب في المجلس</label><textarea id="rPerf" rows="2"></textarea></div>
+          <div class="field"><label for="rNotes">ملاحظات أو تنبيهات</label><textarea id="rNotes" rows="2"></textarea></div>
+          <div class="field"><label for="rHome">التكليف (الواجب)</label><textarea id="rHome" rows="3"></textarea></div>
+          <div class="field" id="rIndWrap" hidden><label for="rInd">ملاحظات عن طالب بعينه (اختياري)</label><textarea id="rInd" rows="2" placeholder="مثال: سلمى: تحتاج إلى مراجعة درس الأمس."></textarea></div>
+          <div class="note">يُحفظ التقرير في أرشيف الطالب، ثم تُرسله إلى مجموعة الأسرة على واتساب، وترفق صور الواجب والتسجيل الصوتي من واتساب نفسه.</div>
+        </div>
+
+        <div class="confirm" id="confirm" hidden></div>
+        <div class="actions">
+          <button type="button" class="primary" id="save">حفظ</button>
+        </div>
+        <div class="send" id="sendBox" hidden>
+          <div class="ok-line" id="savedLine">✓ تم الحفظ</div>
+          <button type="button" class="wa" id="wa">إرسال التقرير إلى واتساب</button>
+          <button type="button" class="ghost" id="copy">نسخ نص التقرير</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
