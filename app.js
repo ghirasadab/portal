@@ -67,7 +67,19 @@
     var v = norm(day);
     return v === "الاثنين" ? ["الاثنين", "الاتنين", "الإثنين"].map(norm) : [v];
   }
+  // مواعيد اليوم من الكالندر (إن وُجد للمعلم كالندر)
+  function dayEvents(key) { return D && D.schedule ? (D.schedule[key] || []) : null; }
+  function unitTime(u, key) {
+    var ev = dayEvents(key); if (!ev) return "";
+    return ev.filter(function (e) { return e.unitKey === u.key; }).map(function (e) { return fmtTime(e.from) + (e.kind === "makeup" ? " (تعويض)" : ""); }).join("، ");
+  }
+  function fmtTime(t) {
+    var p = String(t || "").split(":"), h = +p[0], m = p[1] || "00";
+    return (h % 12 || 12) + ":" + m + (h < 12 ? "ص" : "م");
+  }
   function isUnitToday(u, key) {
+    var ev = dayEvents(key);
+    if (ev) return ev.some(function (e) { return e.unitKey === u.key; });
     var wd = weekdayOf(key);
     if (!wd || !u.days) return false;
     var days = norm(u.days);
@@ -145,17 +157,24 @@
       return norm(u.title + " " + u.cat + " " + u.members.map(function (m) { return m.code + " " + m.parent; }).join(" ")).indexOf(q) !== -1;
     });
     var today = list.filter(function (u) { return isUnitToday(u, dateKey); });
+    var firstTime = function (u) { var ev = dayEvents(dateKey) || []; var e = ev.filter(function (x) { return x.unitKey === u.key; })[0]; return e ? e.from : "99"; };
+    today.sort(function (a, b) { return firstTime(a) < firstTime(b) ? -1 : 1; });
     var other = list.filter(function (u) { return !isUnitToday(u, dateKey); });
     function li(u) {
       var done = unitRecorded(u, dateKey);
       return '<li tabindex="0" data-key="' + esc(u.key) + '"' + (unit && unit.key === u.key ? ' class="sel"' : "") + '><div><div class="nm">' + esc(u.title) +
-        '</div><div class="mt">' + esc(u.cat) + (u.days ? " — " + esc(u.days) : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
+        '</div><div class="mt">' + (unitTime(u, dateKey) ? '<b class="tm">' + esc(unitTime(u, dateKey)) + "</b> — " : "") + esc(u.cat) + (u.days && !dayEvents(dateKey) ? " — " + esc(u.days) : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
     }
     $("evalBox").hidden = !D.hasEval;
     var ne = Number((D.evals || {})[dateKey]) || 0;
     $("evalCount").textContent = ne ? "تقييمات هذا اليوم: " + ne : "";
     $("todayHead").textContent = "مجالس " + (dateKey === D.today ? "اليوم" : "يوم " + weekdayOf(dateKey));
-    $("unitsToday").innerHTML = today.length ? today.map(li).join("") : '<li class="empty">لا توجد مجالس مجدولة في هذا اليوم.</li>';
+    // مواعيد الكالندر غير المرتبطة بمجلس، والتقييمات
+    var extra = (dayEvents(dateKey) || []).filter(function (e) { return !e.unitKey; }).map(function (e) {
+      if (e.kind === "eval") return '<li class="cal-ev" data-eval="' + esc(e.name) + '"><div><div class="nm">تقييم: ' + esc(e.name) + '</div><div class="mt"><b class="tm">' + esc(fmtTime(e.from)) + '</b> — اضغط لكتابة التقييم</div></div><span class="ev-ic">📝</span></li>';
+      return '<li class="cal-ev muted"><div><div class="nm">' + esc(e.title) + '</div><div class="mt"><b class="tm">' + esc(fmtTime(e.from)) + "</b> — موعد في الكالندر لم يُربط بمجلس</div></div></li>";
+    }).join("");
+    $("unitsToday").innerHTML = (today.length ? today.map(li).join("") : (extra ? "" : '<li class="empty">لا توجد مجالس مجدولة في هذا اليوم.</li>')) + extra;
     $("unitsOther").innerHTML = other.length ? other.map(li).join("") : '<li class="empty">—</li>';
     $("otherHead").hidden = !other.length && !q;
   }
@@ -414,6 +433,10 @@
       $(id).querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
     });
   });
+  $("unitsToday").addEventListener("click", function (e) {
+    var ev = e.target.closest("[data-eval]"); if (!ev) return;
+    e.stopPropagation(); $("evalOpen").click(); $("evName").value = ev.getAttribute("data-eval");
+  }, true);
   $("evalOpen").addEventListener("click", function () {
     if (unit) closeUnit();
     $("empty").hidden = true; $("form").hidden = true; $("evalForm").hidden = false;

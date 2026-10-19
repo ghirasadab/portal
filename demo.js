@@ -60,7 +60,13 @@
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }
-        if (p.action === "init") return ok(JSON.parse(JSON.stringify(Object.assign({ ok: true, admin: ADMIN_DEMO }, DATA, ADMIN_DEMO ? { teacher: p.as } : {}))));
+        if (p.action === "init") {
+          var sch = {}; sch[key(today)] = [{ from: "17:00", to: "18:00", mins: 60, title: DATA.units[1].title, kind: "session", unitKey: DATA.units[1].key },
+            { from: "15:00", to: "15:45", mins: 45, title: DATA.units[0].title, kind: "session", unitKey: DATA.units[0].key },
+            { from: "18:30", to: "19:00", mins: 30, title: "تقييم يوسف علي", kind: "eval", name: "يوسف علي" },
+            { from: "19:00", to: "20:00", mins: 60, title: "مجلس مريم", kind: "session" }];
+          return ok(JSON.parse(JSON.stringify(Object.assign({ ok: true, admin: ADMIN_DEMO, schedule: sch }, DATA, ADMIN_DEMO ? { teacher: p.as } : {}))));
+        }
         if (p.action === "stats") return ok({ ok: true, stats: { ok: true, name: p.as || "أ. معلم تجريبي", month: DATA.month, sessions: 46, hours: 34, evaluations: 2, salary: 2380, bonus: 0, bonusLimit: 60,
           counts: { done: 40, makeup: 4, absent: 2, pTeacher: 1, pStudent: 3 },
           list: [{ name: "طالب تجريبي أول", code: "ط.9001", done: 8, makeup: 1, absent: 0, pTeacher: 0, pStudent: 1, minutes: 540, last: key(today) },

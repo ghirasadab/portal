@@ -218,3 +218,7 @@ html.ga-dark .tab.on { color: #0b2210; }
 .reg-form .rf-target { margin-top: 6px; }
 .msg { white-space: pre-line; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.units .tm { color: var(--green); font-weight: 700; }
+.units li.cal-ev { cursor: pointer; }
+.units li.cal-ev.muted { opacity: .7; cursor: default; }
+.units .ev-ic { font-size: 18px; }
