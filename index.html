@@ -46,7 +46,63 @@
     <p id="gateText">افتح البوابة من الرابط الخاص بك الذي أرسلته إليك الإدارة.</p>
   </section>
 
-  <div id="loading" class="loading">جارٍ تحميل مجالسك…</div>
+  <div id="loading" class="loading">جارٍ تحميل البيانات…</div>
+
+  <!-- شريط المدير أثناء فتح شيت معلم -->
+  <div id="asBar" class="as-bar" hidden>
+    <span>أنت تعمل بصفة <b>المدير</b> على مجالس:</span>
+    <select id="asSel" aria-label="اختر المعلم"></select>
+    <button type="button" class="link-btn light" id="asHome">→ صفحة المدير</button>
+  </div>
+
+  <!-- صفحة المدير -->
+  <div id="adminView" hidden>
+    <div class="admin-tabs">
+      <button type="button" class="tab on" data-atab="sum">الملخص</button>
+      <button type="button" class="tab" data-atab="arch">أرشيف التقارير</button>
+      <span class="spacer"></span>
+      <select id="aMonth" class="date-sel" aria-label="الشهر"></select>
+      <button type="button" class="ghost small" id="aFresh">⟳ تحديث الأرقام</button>
+    </div>
+
+    <div id="aSum">
+      <div id="aLoading" class="loading">جارٍ جمع الأرقام من شيتات المعلمين… قد يستغرق ذلك نصف دقيقة.</div>
+      <div id="aBody" hidden>
+        <div class="note" id="aUpdated"></div>
+        <h2>ملخص الفلوس — <span id="aMoneyMonth"></span></h2>
+        <div class="cards" id="aMoney"></div>
+        <div class="cards" id="aFamilies"></div>
+
+        <section class="card" id="aTodayCard">
+          <h2 id="aTodayHead">متابعة اليوم</h2>
+          <div id="aToday"></div>
+        </section>
+
+        <section class="card">
+          <h2>المعلمون — <span id="aTeachMonth"></span></h2>
+          <div class="table-wrap">
+            <table class="tbl" id="aTable">
+              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>الحافز</th><th>إجمالي الأجر</th><th>آخر تسجيل</th></tr></thead>
+              <tbody></tbody>
+              <tfoot></tfoot>
+            </table>
+          </div>
+          <div class="note">اضغط اسم المعلم لفتح مجالسه والتسجيل بدلًا منه. الأرقام من «ملخص الشهر» في شيت كل معلم.</div>
+        </section>
+      </div>
+    </div>
+
+    <div id="aArch" hidden>
+      <section class="card">
+        <h2>البحث في أرشيف التقارير</h2>
+        <div class="min-row">
+          <input id="aQ" type="search" placeholder="اسم طالب أو أسرة أو كود أو معلم" style="flex:1">
+          <button type="button" class="primary small" id="aGo">بحث</button>
+        </div>
+        <div id="aResults"></div>
+      </section>
+    </div>
+  </div>
 
   <div id="app" class="layout" hidden>
     <!-- اختيار اليوم والمجلس -->

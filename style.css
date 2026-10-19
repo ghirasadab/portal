@@ -157,3 +157,42 @@ html.ga-dark .ok-line { color: #8fd096; }
 .wa { background: var(--wa); color: #fff; border: none; border-radius: 12px; font-family: inherit; font-size: 16px; font-weight: 700; padding: 11px; cursor: pointer; }
 .ghost { background: transparent; color: var(--green); border: 1.5px solid var(--green); border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 700; padding: 9px; cursor: pointer; }
 .members.all-absent select.st-sel { visibility: hidden; }
+
+/* صفحة المدير */
+.as-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--orange); color: #fff; border-radius: 12px; padding: 8px 14px; margin-bottom: 14px; font-size: 14px; }
+.as-bar select { font-family: inherit; font-size: 14px; border-radius: 8px; border: none; padding: 4px 8px; }
+.link-btn.light { color: #fff; text-decoration: underline; }
+.admin-tabs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.admin-tabs .spacer { flex: 1; }
+.tab { font-family: "Kufam", inherit; font-weight: 700; font-size: 14.5px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+.tab.on { background: var(--green); color: #fff; border-color: var(--green); }
+html.ga-dark .tab.on { color: #0b2210; }
+.ghost.small, .primary.small { width: auto; font-size: 14px; padding: 6px 14px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+.kpi .k { font-size: 12.5px; color: var(--muted); }
+.kpi .v { font-family: "Kufam", inherit; font-size: 21px; font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+.kpi.hl { background: var(--mint); }
+.kpi.warn .v { color: var(--orange); }
+#adminView .card { margin-bottom: 14px; }
+.table-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tbl th { text-align: right; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 6px 8px; border-bottom: 1.5px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 7px 8px; border-bottom: 1px dashed var(--line); white-space: nowrap; }
+.tbl tfoot td { font-weight: 700; border-top: 1.5px solid var(--line); border-bottom: none; }
+.tbl .tname { font-weight: 700; color: var(--green); cursor: pointer; background: none; border: none; font-family: inherit; font-size: 14.5px; padding: 0; }
+.tbl .tname:hover { text-decoration: underline; }
+.badge { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 0 8px; margin-inline-start: 6px; background: var(--beige); color: var(--ink); font-weight: 600; }
+.badge.warn { background: #fde2cf; color: #8a3a00; }
+.today-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+.today-row:last-child { border-bottom: none; }
+.today-row .cnt { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.today-row .cnt.ok { color: var(--ok); }
+.today-row .cnt.no { color: var(--orange); }
+.today-row .pend { font-size: 12.5px; color: var(--muted); }
+.arch-item { border-top: 1px dashed var(--line); padding: 10px 0; font-size: 14px; }
+.arch-item .hd { font-weight: 700; color: var(--green); }
+.arch-item .ln { margin: 3px 0; }
+.tname-link { font-weight: 700; color: var(--green); cursor: pointer; background: none; border: none; font-family: inherit; font-size: 14.5px; padding: 0; }
+.tname-link:hover { text-decoration: underline; }

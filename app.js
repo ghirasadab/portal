@@ -9,12 +9,14 @@
   var unit = null;         // المجلس المختار
   var status = "";         // حالة المجلس المختارة
   var saving = false, armed = false, lastSaved = null, pendingOverwrite = false;
+  var AD = null, OV = null, asTeacher = "";   // وضع المدير
 
   /* ---------------- الاتصال بالخادم ---------------- */
   function api(action, payload) {
     payload = payload || {};
     payload.action = action;
     payload.token = getToken();
+    if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 45000);
@@ -89,7 +91,11 @@
   function load(month, keepUnitKey) {
     $("loading").hidden = false;
     api("init", { month: month || "" }).then(function (d) {
+      if (d.adminHome) { showAdminHome(d); return; }
       D = d;
+      $("adminView").hidden = true;
+      $("asBar").hidden = !d.admin;
+      if (d.admin) fillAsSel();
       $("loading").hidden = true; $("gate").hidden = true; $("app").hidden = false;
       $("who").textContent = d.teacher;
       $("leaveNote").hidden = !d.onLeave;
@@ -112,6 +118,7 @@
         try { localStorage.removeItem(TOKEN_KEY); } catch (x) {}
         $("app").hidden = true; $("gate").hidden = false; $("gateText").textContent = m.slice(5).trim();
       } else {
+        if (asTeacher && AD) { backHome(); }
         showMsg("⚠ " + m, false);
       }
     });
@@ -131,6 +138,7 @@
   }
 
   function renderUnits() {
+    if (!D) return;
     var q = norm($("q").value);
     var list = D.units.filter(function (u) {
       if (!q) return true;
@@ -422,7 +430,10 @@
   $("save").addEventListener("click", function () { save(pendingOverwrite); });
   $("back").addEventListener("click", closeUnit);
   $("month").addEventListener("change", function () { dateKey = ""; unit = null; closeUnit(); load($("month").value); });
-  $("refresh").addEventListener("click", function () { load(D ? D.month : "", unit ? unit.key : ""); });
+  $("refresh").addEventListener("click", function () {
+    if (AD && !asTeacher) { loadOverview(true); return; }
+    load(D ? D.month : "", unit ? unit.key : "");
+  });
   $("theme").addEventListener("click", function () {
     var dark = document.documentElement.classList.toggle("ga-dark");
     try { localStorage.setItem("ga-theme", dark ? "dark" : "light"); } catch (e) {}
@@ -449,6 +460,134 @@
       }).join("") : '<div class="note">لا توجد تقارير سابقة.</div>';
     }).catch(function (e) { $("historyBody").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
   });
+
+  /* ---------------- صفحة المدير ---------------- */
+  function money(n) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " ج"; }
+  function numf(n, d) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: d || 0 }); }
+
+  function showAdminHome(d) {
+    AD = d; asTeacher = ""; D = null; unit = null;
+    $("loading").hidden = true; $("gate").hidden = true; $("app").hidden = true; $("asBar").hidden = true;
+    $("adminView").hidden = false;
+    $("who").textContent = "المدير";
+    $("month").hidden = true;
+    $("aMonth").innerHTML = d.months.map(function (m) { return "<option>" + esc(m) + "</option>"; }).join("");
+    if (OV) renderOverview(); else loadOverview(false);
+  }
+
+  function loadOverview(fresh) {
+    $("aLoading").hidden = false; $("aBody").hidden = true;
+    api("overview", { month: $("aMonth").value, fresh: !!fresh }).then(function (o) {
+      OV = o; renderOverview();
+    }).catch(function (e) { $("aLoading").hidden = true; showMsg("⚠ " + (e.message || e), false); });
+  }
+
+  function renderOverview() {
+    var o = OV;
+    $("aLoading").hidden = true; $("aBody").hidden = false;
+    $("aUpdated").textContent = "آخر قراءة للأرقام: " + o.updated + (o.cached ? " (محفوظة مؤقتًا، اضغط «تحديث الأرقام» لقراءة جديدة)" : "");
+    $("aMoneyMonth").textContent = o.month;
+    $("aTeachMonth").textContent = o.month;
+    function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
+    var r = o.money.report;
+    $("aMoney").innerHTML = r ? [
+      kpi("مجموع الوارد", money(r.income), "الدفعات المسجلة عن الشهر"),
+      kpi("رواتب المعلمين", money(r.salaries)),
+      kpi("المتبقي للأسر", money(r.familiesCredit), "حصص مدفوعة لم تُعطَ بعد"),
+      kpi("صافي المال", money(r.net), "", "hl")
+    ].join("") : '<div class="note">لا يوجد صف لهذا الشهر في «التقرير المالي».</div>';
+    var f = o.money.families;
+    $("aFamilies").innerHTML = f ? [
+      kpi("فواتير الشهر", money(f.invoices), f.families + " أسرة"),
+      kpi("المدفوع", money(f.paid)),
+      kpi("المتبقي على الأسر", money(f.due), "لم تدفع: " + f.unpaid + " — دفعت جزءًا: " + f.partial, f.due > 0 ? "warn" : ""),
+      kpi("أرصدة مقدّمة للأسر", money(f.credit))
+    ].join("") : (o.money.financialMonth ? '<div class="note">تحصيل الأسر يظهر للشهر المالي الحالي (' + esc(o.money.financialMonth) + ") فقط.</div>" : "");
+
+    // متابعة اليوم
+    var withToday = o.teachers.filter(function (t) { return t.ok && t.today; });
+    $("aTodayCard").hidden = !o.isCurrent;
+    $("aTodayHead").textContent = "متابعة اليوم — " + o.todayWeekday;
+    if (o.isCurrent) {
+      var rows = withToday.filter(function (t) { return t.today.scheduled || t.today.extra; })
+        .sort(function (a, b) { return (a.today.scheduled - a.today.recorded) < (b.today.scheduled - b.today.recorded) ? 1 : -1; });
+      $("aToday").innerHTML = rows.length ? rows.map(function (t) {
+        var left = t.today.scheduled - t.today.recorded;
+        return '<div class="today-row"><div><button type="button" class="tname-link" data-t="' + esc(t.name) + '">' + esc(t.name) + "</button>" +
+          (t.onLeave ? '<span class="badge">إجازة</span>' : "") +
+          (t.today.pending.length ? '<div class="pend">لم يُسجَّل: ' + esc(t.today.pending.join(" | ")) + "</div>" : "") +
+          (t.today.extra ? '<div class="pend">وسجّل ' + t.today.extra + " مجلسًا خارج جدول اليوم</div>" : "") +
+          '</div><div class="cnt ' + (left > 0 ? "no" : "ok") + '">' + t.today.recorded + " / " + t.today.scheduled + "</div></div>";
+      }).join("") : '<div class="note">لا توجد مجالس مجدولة اليوم حسب «أيام الدرس» في الشيتات.</div>';
+    }
+
+    // جدول المعلمين
+    var tot = { s: 0, h: 0, e: 0, b: 0, p: 0 };
+    $("aTable").querySelector("tbody").innerHTML = o.teachers.map(function (t) {
+      var badges = (t.onLeave ? '<span class="badge">إجازة</span>' : "") + (t.stopAfter ? '<span class="badge warn">يتوقف بعد ' + esc(t.stopAfter) + "</span>" : "");
+      if (!t.ok) return '<tr><td><button type="button" class="tname" data-t="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badges + '</td><td colspan="6" class="note">⚠ ' + esc(t.error || "") + "</td></tr>";
+      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.b += t.bonus; tot.p += t.salary;
+      var stale = o.isCurrent && t.lastRecord && daysBetween(t.lastRecord, o.today) > 5;
+      return '<tr><td><button type="button" class="tname" data-t="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badges + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) +
+        "</td><td>" + numf(t.evaluations) + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td>" + money(t.salary) + "</td><td>" +
+        (t.lastRecord ? (stale ? '<span class="badge warn">' : "") + esc(fmtDate(t.lastRecord)) + (stale ? "</span>" : "") : "—") + "</td></tr>";
+    }).join("");
+    $("aTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td></td></tr>";
+  }
+  function daysBetween(a, b) {
+    var pa = a.split("-"), pb = b.split("-");
+    return Math.round((Date.UTC(+pb[0], +pb[1] - 1, +pb[2]) - Date.UTC(+pa[0], +pa[1] - 1, +pa[2])) / 86400000);
+  }
+
+  function openAs(name) {
+    if (!name) return;
+    asTeacher = name; dateKey = ""; unit = null; lastSaved = null;
+    $("adminView").hidden = true; $("app").hidden = true; clearMsg();
+    closeUnit();
+    load("");
+  }
+  function fillAsSel() {
+    if (!AD) return;
+    $("asSel").innerHTML = AD.teachers.filter(function (t) { return t.allowWrite; }).map(function (t) {
+      return "<option" + (t.name === asTeacher ? " selected" : "") + ">" + esc(t.name) + "</option>";
+    }).join("");
+  }
+  function backHome() {
+    asTeacher = ""; D = null; unit = null;
+    $("app").hidden = true; $("asBar").hidden = true; $("month").hidden = true; clearMsg();
+    showAdminHome(AD);
+  }
+
+  $("adminView").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-t]"); if (b) openAs(b.getAttribute("data-t"));
+  });
+  $("asSel").addEventListener("change", function () { openAs($("asSel").value); });
+  $("asHome").addEventListener("click", backHome);
+  $("aFresh").addEventListener("click", function () { loadOverview(true); });
+  $("aMonth").addEventListener("change", function () { loadOverview(false); });
+  document.querySelectorAll("[data-atab]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var t = b.getAttribute("data-atab");
+      document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $("aSum").hidden = t !== "sum"; $("aArch").hidden = t !== "arch";
+      $("aMonth").hidden = t !== "sum"; $("aFresh").hidden = t !== "sum";
+      if (t === "arch") $("aQ").focus();
+    });
+  });
+  function archSearch() {
+    var q = $("aQ").value.trim();
+    if (q.length < 2) return showMsg("⚠ اكتب حرفين على الأقل للبحث.", false);
+    clearMsg();
+    $("aResults").innerHTML = '<div class="note">جارٍ البحث…</div>';
+    api("search", { q: q }).then(function (res) {
+      $("aResults").innerHTML = res.reports.length ? res.reports.map(function (r) {
+        return '<div class="arch-item"><div class="hd">' + esc(fmtDate(r.date)) + " — " + esc(r.unit) + "</div>" +
+          '<div class="note">' + esc(r.teacher) + " — " + esc(r.status) + (r.minutes ? " — " + esc(r.minutes) + " د" : "") + (r.by === "المدير" ? " — سجّله المدير" : "") + "</div>" + reportHtml(r) + "</div>";
+      }).join("") : '<div class="note">لا توجد تقارير مطابقة.</div>';
+    }).catch(function (e) { $("aResults").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  $("aGo").addEventListener("click", archSearch);
+  $("aQ").addEventListener("keydown", function (e) { if (e.key === "Enter") archSearch(); });
 
   /* ---------------- البدء ---------------- */
   takeTokenFromUrl();
