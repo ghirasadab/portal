@@ -462,7 +462,9 @@
   });
 
   /* ---------------- صفحة المدير ---------------- */
-  function money(n) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " ج"; }
+  function money(n, usd) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: usd ? 2 : 0 }) + (usd ? " $" : " ج"); }
+  // مبلغ بالجنيه ومعه الدولار إن وُجد
+  function both(egp, usd) { return money(egp) + (Number(usd) ? '<span class="usd">+ ' + money(usd, true) + "</span>" : ""); }
   function numf(n, d) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: d || 0 }); }
 
   function showAdminHome(d) {
@@ -491,18 +493,23 @@
     function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
     var r = o.money.report;
     $("aMoney").innerHTML = r ? [
-      kpi("مجموع الوارد", money(r.income), "الدفعات المسجلة عن الشهر"),
+      kpi("مجموع الوارد", both(r.income, r.incomeUsd), "الدفعات المسجلة عن الشهر"),
       kpi("رواتب المعلمين", money(r.salaries)),
-      kpi("المتبقي للأسر", money(r.familiesCredit), "حصص مدفوعة لم تُعطَ بعد"),
-      kpi("صافي المال", money(r.net), "", "hl")
+      kpi("المتبقي للأسر", both(r.familiesCredit, r.familiesCreditUsd), "حصص مدفوعة لم تُعطَ بعد"),
+      kpi("صافي المال", money(r.net), r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : "", "hl")
     ].join("") : '<div class="note">لا يوجد صف لهذا الشهر في «التقرير المالي».</div>';
-    var f = o.money.families;
-    $("aFamilies").innerHTML = f ? [
-      kpi("فواتير الشهر", money(f.invoices), f.families + " أسرة"),
-      kpi("المدفوع", money(f.paid)),
-      kpi("المتبقي على الأسر", money(f.due), "لم تدفع: " + f.unpaid + " — دفعت جزءًا: " + f.partial, f.due > 0 ? "warn" : ""),
-      kpi("أرصدة مقدّمة للأسر", money(f.credit))
-    ].join("") : (o.money.financialMonth ? '<div class="note">تحصيل الأسر يظهر للشهر المالي الحالي (' + esc(o.money.financialMonth) + ") فقط.</div>" : "");
+    var fm = o.money.families;
+    if (fm && fm.egp) {
+      var e = fm.egp, d = fm.usd || {};
+      $("aFamilies").innerHTML = [
+        kpi("فواتير الشهر", both(e.invoices, d.invoices), (e.families + (d.families || 0)) + " أسرة" + (d.families ? " (منها " + d.families + " بالدولار)" : "")),
+        kpi("المدفوع", both(e.paid, d.paid)),
+        kpi("المتبقي على الأسر", both(e.due, d.due), "لم تدفع: " + (e.unpaid + (d.unpaid || 0)) + " — دفعت جزءًا: " + (e.partial + (d.partial || 0)), (e.due + (d.due || 0)) > 0 ? "warn" : ""),
+        kpi("أرصدة مقدّمة للأسر", both(e.credit, d.credit))
+      ].join("");
+    } else {
+      $("aFamilies").innerHTML = o.money.financialMonth ? '<div class="note">تحصيل الأسر يظهر للشهر المالي الحالي (' + esc(o.money.financialMonth) + ") فقط.</div>" : "";
+    }
 
     // متابعة اليوم
     var withToday = o.teachers.filter(function (t) { return t.ok && t.today; });

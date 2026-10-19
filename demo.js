@@ -44,8 +44,9 @@
             teachers: [{ name: "أ. معلم تجريبي", allowWrite: true }, { name: "أ. معلمة تجريبية", allowWrite: true, onLeave: true }] });
           if (p.action === "overview") return ok({ ok: true, month: DATA.month, isCurrent: true, today: key(today), todayWeekday: tw, updated: key(today) + " 18:40",
             money: { label: DATA.month, financialMonth: DATA.month,
-              report: { income: 144838, salaries: 39626, expenses: 39626, familiesCredit: 78035, net: 27178 },
-              families: { invoices: 168000, paid: 144838, due: 23162, credit: 9100, families: 180, unpaid: 21, partial: 6 } },
+              report: { income: 146638, salaries: 40628, expenses: 40628, familiesCredit: 76034, net: 29975, incomeUsd: 50, familiesCreditUsd: 50 },
+              families: { egp: { invoices: 168000, paid: 144838, due: 23162, credit: 9100, families: 176, unpaid: 21, partial: 6 },
+                usd: { invoices: 75, paid: 50, due: 25, credit: 0, families: 3, unpaid: 1, partial: 0 } } },
             teachers: [
               { name: "أ. معلم تجريبي", ok: true, sessions: 46, hours: 34, evaluations: 2, bonus: 0, salary: 2380, lastRecord: key(today), today: { scheduled: 3, recorded: 2, extra: 0, pending: ["طالب تأسيس"] } },
               { name: "أ. معلمة تجريبية", ok: true, onLeave: true, sessions: 29, hours: 31.08, evaluations: 0, bonus: 250, salary: 3435.83, lastRecord: dates[Math.max(0, today.getDate() - 9)].key, today: { scheduled: 2, recorded: 0, extra: 0, pending: ["مجموعة أدب: طالبة أولى، طالبة ثانية", "طالبة رابعة"] } },
