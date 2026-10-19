@@ -10,7 +10,7 @@
   for (var i = 1; i <= n; i++) { var d = new Date(y, mo, i); dates.push({ key: key(d), weekday: wds[d.getDay()] }); }
   var tw = wds[today.getDay()];
   function cells(pattern) { return dates.map(function (d, i) { return i < today.getDate() - 1 && pattern(i) ? [pattern(i), "done"] : ["", ""]; }); }
-  var DATA = {
+  var DATA = { hasEval: true, evals: {},
     teacher: "أ. معلم تجريبي", onLeave: false, today: key(today), todayWeekday: tw,
     months: [months[mo] + " " + y], month: months[mo] + " " + y, dates: dates,
     statuses: [
@@ -60,6 +60,7 @@
           list: [{ name: "طالب تجريبي أول", code: "ط.9001", done: 8, makeup: 1, absent: 0, pTeacher: 0, pStudent: 1, minutes: 540, last: key(today) },
             { name: "طالبة ثانية", code: "ط.9003", done: 5, makeup: 0, absent: 2, pTeacher: 1, pStudent: 2, minutes: 300, last: dates[Math.max(0, today.getDate() - 6)].key },
             { name: "طالب تأسيس", code: "ط.9005", done: 0, makeup: 0, absent: 0, pTeacher: 0, pStudent: 0, minutes: 0, last: "" }] } });
+        if (p.action === "evaluation") { DATA.evals = DATA.evals || {}; DATA.evals[p.date] = Number(p.count) || ""; return ok({ ok: true, saved: true, date: p.date, count: Number(p.count) || 0 }); }
         if (p.action === "history") return ok({ ok: true, reports: reports[p.unitKey] || [] });
         if (p.action === "save") {
           var colors = {}; DATA.statuses.forEach(function (s) { colors[s.key] = s; });

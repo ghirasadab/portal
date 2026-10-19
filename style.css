@@ -200,3 +200,5 @@ html.ga-dark .tab.on { color: #0b2210; }
 
 .tbl td.warn-t { color: var(--orange); font-weight: 700; }
 #myStats .cards { margin-bottom: 12px; }
+.eval-box { background: var(--mint); border-radius: 12px; padding: 8px 10px; margin: 8px 0 12px; }
+.eval-box label { font-size: 13px; font-weight: 700; }

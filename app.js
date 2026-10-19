@@ -151,6 +151,9 @@
       return '<li tabindex="0" data-key="' + esc(u.key) + '"' + (unit && unit.key === u.key ? ' class="sel"' : "") + '><div><div class="nm">' + esc(u.title) +
         '</div><div class="mt">' + esc(u.cat) + (u.days ? " — " + esc(u.days) : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
     }
+    $("evalBox").hidden = !D.hasEval;
+    if (document.activeElement !== $("evalN")) $("evalN").value = (D.evals || {})[dateKey] || "";
+    $("evalMsg").textContent = "";
     $("todayHead").textContent = "مجالس " + (dateKey === D.today ? "اليوم" : "يوم " + weekdayOf(dateKey));
     $("unitsToday").innerHTML = today.length ? today.map(li).join("") : '<li class="empty">لا توجد مجالس مجدولة في هذا اليوم.</li>';
     $("unitsOther").innerHTML = other.length ? other.map(li).join("") : '<li class="empty">—</li>';
@@ -403,6 +406,15 @@
     $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") onUnitClick(e); });
   });
   $("q").addEventListener("input", renderUnits);
+  // تسجيل عدد التقييمات في اليوم المختار
+  $("evalSave").addEventListener("click", function () {
+    var n = String($("evalN").value || "").replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x0660; }).trim() || "0";
+    var btn = $("evalSave"); btn.disabled = true; $("evalMsg").textContent = "جارٍ الحفظ…";
+    api("evaluation", { month: D.month, date: dateKey, count: n, note: $("evalNote").value }).then(function (r) {
+      D.evals = D.evals || {}; if (r.count) D.evals[dateKey] = r.count; else delete D.evals[dateKey];
+      $("evalNote").value = ""; $("evalMsg").textContent = "✓ حُفظ عدد التقييمات (" + (r.count || 0) + ") ليوم " + weekdayOf(dateKey) + ".";
+    }).catch(function (e) { $("evalMsg").textContent = "⚠ " + e.message; }).then(function () { btn.disabled = false; });
+  });
   $("date").addEventListener("change", function () { setDate($("date").value); });
   document.querySelectorAll("[data-day]").forEach(function (b) {
     b.addEventListener("click", function () { setDate(b.getAttribute("data-day") === "today" ? D.today : yesterdayKey(D.today)); });

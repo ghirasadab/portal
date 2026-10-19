@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=202610192318">
+<link rel="stylesheet" href="style.css?v=202610192319">
 </head>
 <body>
 <header class="top">
@@ -149,6 +149,15 @@
       <div class="search">
         <input id="q" type="search" placeholder="ابحث عن طالب أو مجموعة" autocomplete="off">
       </div>
+      <div class="eval-box" id="evalBox" hidden>
+        <label for="evalN">التقييمات في هذا اليوم</label>
+        <div class="min-row">
+          <input id="evalN" type="text" inputmode="numeric" placeholder="0" style="width:70px">
+          <input id="evalNote" type="text" placeholder="لمن؟ (اختياري)" style="flex:1">
+          <button type="button" class="primary small" id="evalSave">حفظ</button>
+        </div>
+        <div class="note" id="evalMsg"></div>
+      </div>
       <h2 id="todayHead">مجالس اليوم</h2>
       <ul id="unitsToday" class="units"></ul>
       <h2 id="otherHead">باقي المجالس</h2>
@@ -224,8 +233,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610192318"></script>
-<script src="demo.js?v=202610192318"></script>
-<script src="app.js?v=202610192318"></script>
+<script src="config.js?v=202610192319"></script>
+<script src="demo.js?v=202610192319"></script>
+<script src="app.js?v=202610192319"></script>
 </body>
 </html>
