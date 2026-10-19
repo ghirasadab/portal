@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=202610192151">
+<link rel="stylesheet" href="style.css?v=202610192318">
 </head>
 <body>
 <header class="top">
@@ -32,6 +32,7 @@
     <div class="top-tools">
       <span class="who" id="who"></span>
       <select id="month" class="month-sel" aria-label="الشهر" hidden></select>
+      <button type="button" class="icon-btn" id="myStatsBtn" title="إحصاءاتي" aria-label="إحصاءاتي" hidden>📊</button>
       <button type="button" class="icon-btn" id="refresh" title="تحديث" aria-label="تحديث">⟳</button>
       <button type="button" class="icon-btn" id="theme" title="الوضع الغامق" aria-label="تبديل الوضع الغامق">◐</button>
     </div>
@@ -58,8 +59,11 @@
   <!-- صفحة المدير -->
   <div id="adminView" hidden>
     <div class="admin-tabs">
-      <button type="button" class="tab on" data-atab="sum">الملخص</button>
-      <button type="button" class="tab" data-atab="arch">أرشيف التقارير</button>
+      <button type="button" class="tab on" data-atab="today">اليوم</button>
+      <button type="button" class="tab" data-atab="stats">الإحصاءات</button>
+      <button type="button" class="tab" data-atab="pay">الرواتب</button>
+      <button type="button" class="tab" data-atab="money">المالية</button>
+      <button type="button" class="tab" data-atab="arch">الأرشيف</button>
       <span class="spacer"></span>
       <select id="aMonth" class="date-sel" aria-label="الشهر"></select>
       <button type="button" class="ghost small" id="aFresh">⟳ تحديث الأرقام</button>
@@ -69,26 +73,46 @@
       <div id="aLoading" class="loading">جارٍ جمع الأرقام من جداول المعلمين… قد يستغرق ذلك نصف دقيقة.</div>
       <div id="aBody" hidden>
         <div class="note" id="aUpdated"></div>
-        <h2>الملخص المالي — <span id="aMoneyMonth"></span></h2>
-        <div class="cards" id="aMoney"></div>
-        <div class="cards" id="aFamilies"></div>
+        <div data-sec="money" hidden>
+          <h2>الملخص المالي — <span id="aMoneyMonth"></span></h2>
+          <div class="cards" id="aMoney"></div>
+          <div class="cards" id="aFamilies"></div>
+        </div>
 
-        <section class="card" id="aTodayCard">
+        <section class="card" id="aTodayCard" data-sec="today">
           <h2 id="aTodayHead">متابعة اليوم</h2>
           <div id="aToday"></div>
         </section>
 
-        <section class="card">
-          <h2>المعلمون — <span id="aTeachMonth"></span></h2>
-          <div class="table-wrap">
-            <table class="tbl" id="aTable">
-              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>الحافز</th><th>إجمالي الأجر</th><th>آخر تسجيل</th></tr></thead>
-              <tbody></tbody>
-              <tfoot></tfoot>
-            </table>
-          </div>
-          <div class="note">اضغط اسم المعلم لفتح مجالسه والتسجيل بدلًا منه. الأرقام من «ملخص الشهر» في جدول كل معلم.</div>
-        </section>
+        <div data-sec="stats" hidden>
+          <div class="cards" id="sKpis"></div>
+          <section class="card">
+            <h2>المعلمون — <span class="mLbl"></span></h2>
+            <div class="table-wrap"><table class="tbl" id="sTable">
+              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>حضور</th><th>تعويض</th><th>غياب دون تنبيه</th><th>تأجيل من المعلم</th><th>تأجيل من الطالب</th><th>آخر تسجيل</th></tr></thead>
+              <tbody></tbody><tfoot></tfoot></table></div>
+            <div class="note">اضغط اسم المعلم لعرض إحصاءات طلابه. الحضور والغياب والتأجيل يُعدّ لكل مجلس مرة واحدة في اليوم.</div>
+          </section>
+          <section class="card" id="sDetail" hidden></section>
+        </div>
+
+        <div data-sec="pay" hidden>
+          <div class="cards" id="pKpis"></div>
+          <section class="card">
+            <div class="min-row" style="justify-content:space-between">
+              <h2 style="margin:0">رواتب المعلمين — <span class="mLbl"></span></h2>
+              <select id="pFilter" class="date-sel" aria-label="تصفية">
+                <option value="all">كل المعلمين</option>
+                <option value="yes">حصلوا على حافز الإنترنت</option>
+                <option value="no">لم يحصلوا عليه</option>
+              </select>
+            </div>
+            <div class="table-wrap"><table class="tbl" id="pTable">
+              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>الأجر قبل الحافز</th><th>حدّ الحافز</th><th>الحافز</th><th>إجمالي الأجر</th><th>ملاحظة</th></tr></thead>
+              <tbody></tbody><tfoot></tfoot></table></div>
+            <div class="note">الأرقام من «ملخص الشهر» في جدول كل معلم.</div>
+          </section>
+        </div>
       </div>
     </div>
 
@@ -103,6 +127,14 @@
       </section>
     </div>
   </div>
+
+  <section id="myStats" hidden>
+    <div class="min-row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">إحصاءاتي — <span id="msMonth"></span></h2>
+      <button type="button" class="link-btn" id="msBack">→ رجوع إلى المجالس</button>
+    </div>
+    <div id="msBody"><div class="loading">جارٍ التحميل…</div></div>
+  </section>
 
   <div id="app" class="layout" hidden>
     <!-- اختيار اليوم والمجلس -->
@@ -192,8 +224,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610192151"></script>
-<script src="demo.js?v=202610192151"></script>
-<script src="app.js?v=202610192151"></script>
+<script src="config.js?v=202610192318"></script>
+<script src="demo.js?v=202610192318"></script>
+<script src="app.js?v=202610192318"></script>
 </body>
 </html>

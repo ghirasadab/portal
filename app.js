@@ -96,7 +96,7 @@
       $("adminView").hidden = true;
       $("asBar").hidden = !d.admin;
       if (d.admin) fillAsSel();
-      $("loading").hidden = true; $("gate").hidden = true; $("app").hidden = false;
+      $("loading").hidden = true; $("gate").hidden = true; $("app").hidden = false; $("myStats").hidden = true; $("myStatsBtn").hidden = false;
       $("who").textContent = d.teacher;
       $("leaveNote").hidden = !d.onLeave;
       var ms = $("month");
@@ -470,7 +470,7 @@
   function showAdminHome(d) {
     AD = d; asTeacher = ""; D = null; unit = null;
     $("loading").hidden = true; $("gate").hidden = true; $("app").hidden = true; $("asBar").hidden = true;
-    $("adminView").hidden = false;
+    $("adminView").hidden = false; $("myStats").hidden = true; $("myStatsBtn").hidden = true;
     $("who").textContent = "المدير";
     $("month").hidden = true;
     $("aMonth").innerHTML = d.months.map(function (m) { return "<option>" + esc(m) + "</option>"; }).join("");
@@ -489,7 +489,7 @@
     $("aLoading").hidden = true; $("aBody").hidden = false;
     $("aUpdated").textContent = "آخر قراءة للأرقام: " + o.updated + (o.cached ? " (محفوظة مؤقتًا، اضغط «تحديث الأرقام» لقراءة جديدة)" : "");
     $("aMoneyMonth").textContent = o.month;
-    $("aTeachMonth").textContent = o.month;
+    document.querySelectorAll(".mLbl").forEach(function (x) { x.textContent = o.month; });
     function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
     var r = o.money.report;
     $("aMoney").innerHTML = r ? [
@@ -513,7 +513,7 @@
 
     // متابعة اليوم
     var withToday = o.teachers.filter(function (t) { return t.ok && t.today; });
-    $("aTodayCard").hidden = !o.isCurrent;
+    if (!o.isCurrent) $("aToday").innerHTML = '<div class="note">متابعة اليوم متاحة للشهر الحالي فقط.</div>';
     $("aTodayHead").textContent = "متابعة اليوم — " + o.todayWeekday;
     if (o.isCurrent) {
       var rows = withToday.filter(function (t) { return t.today.scheduled || t.today.extra; })
@@ -528,19 +528,108 @@
       }).join("") : '<div class="note">لا توجد مجالس مجدولة اليوم حسب «أيام الدرس» في الجداول.</div>';
     }
 
-    // جدول المعلمين
-    var tot = { s: 0, h: 0, e: 0, b: 0, p: 0 };
-    $("aTable").querySelector("tbody").innerHTML = o.teachers.map(function (t) {
-      var badges = (t.onLeave ? '<span class="badge">إجازة</span>' : "") + (t.stopAfter ? '<span class="badge warn">يتوقف بعد ' + esc(t.stopAfter) + "</span>" : "");
-      if (!t.ok) return '<tr><td><button type="button" class="tname" data-t="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badges + '</td><td colspan="6" class="note">⚠ ' + esc(t.error || "") + "</td></tr>";
-      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.b += t.bonus; tot.p += t.salary;
-      var stale = o.isCurrent && t.lastRecord && daysBetween(t.lastRecord, o.today) > 5;
-      return '<tr><td><button type="button" class="tname" data-t="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badges + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) +
-        "</td><td>" + numf(t.evaluations) + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td>" + money(t.salary) + "</td><td>" +
-        (t.lastRecord ? (stale ? '<span class="badge warn">' : "") + esc(fmtDate(t.lastRecord)) + (stale ? "</span>" : "") : "—") + "</td></tr>";
-    }).join("");
-    $("aTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td></td></tr>";
+    renderStats(o); renderPay(o);
   }
+
+  var CNT = ["done", "makeup", "absent", "pTeacher", "pStudent"];
+  function cnt(t, k) { return t.counts ? (t.counts[k] || 0) : 0; }
+  function badgesOf(t) { return (t.onLeave ? '<span class="badge">إجازة</span>' : "") + (t.stopAfter ? '<span class="badge warn">يتوقف بعد ' + esc(t.stopAfter) + "</span>" : ""); }
+  function tBtn(t, attr) { return '<button type="button" class="tname" ' + attr + '="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badgesOf(t); }
+
+  // الإحصاءات: لكل معلم عدد الحصص والساعات والتقييمات والحالات
+  function renderStats(o) {
+    var ok = o.teachers.filter(function (t) { return t.ok; });
+    var tot = { s: 0, h: 0, e: 0 }; CNT.forEach(function (k) { tot[k] = 0; });
+    $("sTable").querySelector("tbody").innerHTML = o.teachers.map(function (t) {
+      if (!t.ok) return "<tr><td>" + tBtn(t, "data-t") + '</td><td colspan="9" class="note">⚠ ' + esc(t.error || "") + "</td></tr>";
+      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations;
+      CNT.forEach(function (k) { tot[k] += cnt(t, k); });
+      var stale = o.isCurrent && t.lastRecord && daysBetween(t.lastRecord, o.today) > 5;
+      return "<tr><td>" + tBtn(t, "data-st") + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td>" +
+        CNT.map(function (k) { var v = cnt(t, k); return "<td" + (v && (k === "absent" || k === "pTeacher") ? ' class="warn-t"' : "") + ">" + (v || "—") + "</td>"; }).join("") +
+        "<td>" + (t.lastRecord ? (stale ? '<span class="badge warn">' : "") + esc(fmtDate(t.lastRecord)) + (stale ? "</span>" : "") : "—") + "</td></tr>";
+    }).join("");
+    $("sTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td>" +
+      CNT.map(function (k) { return "<td>" + numf(tot[k]) + "</td>"; }).join("") + "<td></td></tr>";
+    var planned = tot.done + tot.makeup + tot.absent + tot.pTeacher + tot.pStudent;
+    $("sKpis").innerHTML = [
+      kpi("ساعات التدريس", numf(tot.h, 1), numf(tot.s) + " حصة لدى " + ok.length + " معلمًا"),
+      kpi("التقييمات", numf(tot.e)),
+      kpi("نسبة انعقاد المجالس", planned ? Math.round((tot.done + tot.makeup) * 100 / planned) + "%" : "—", "من المجالس المسجَّلة بأي حالة"),
+      kpi("غياب دون تنبيه", numf(tot.absent), "", tot.absent ? "warn" : ""),
+      kpi("تأجيل من المعلم", numf(tot.pTeacher), "", tot.pTeacher ? "warn" : ""),
+      kpi("تأجيل من الطالب", numf(tot.pStudent))
+    ].join("");
+  }
+
+  // الرواتب: تفصيل أجر كل معلم وحافز الإنترنت
+  function renderPay(o) {
+    var f = $("pFilter").value, ok = o.teachers.filter(function (t) { return t.ok; });
+    var got = ok.filter(function (t) { return t.bonus > 0; });
+    var rows = ok.filter(function (t) { return f === "all" || (f === "yes" ? t.bonus > 0 : !(t.bonus > 0)); });
+    var tot = { s: 0, h: 0, e: 0, a: 0, b: 0, p: 0 };
+    $("pTable").querySelector("tbody").innerHTML = rows.map(function (t) {
+      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.a += t.beforeBonus || 0; tot.b += t.bonus; tot.p += t.salary;
+      var note = t.bonus > 0 ? '<span class="badge">✓ حصل على الحافز</span>'
+        : (t.bonusLimit ? '<span class="badge warn">ينقصه ' + numf(Math.max(t.bonusLimit - t.sessions, 0)) + " حصة</span>" : "—");
+      return "<tr><td>" + tBtn(t, "data-st") + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td><td>" +
+        money(t.beforeBonus) + "</td><td>" + (t.bonusLimit ? numf(t.bonusLimit) + " حصة" : "—") + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td><td>" + note + "</td></tr>";
+    }).join("") || '<tr><td colspan="9" class="note">لا يوجد معلمون في هذا التصنيف.</td></tr>';
+    $("pTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي (" + rows.length + ")</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" +
+      money(tot.a) + "</td><td></td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td></td></tr>";
+    var all = ok.reduce(function (a, t) { return a + t.salary; }, 0), bon = got.reduce(function (a, t) { return a + t.bonus; }, 0);
+    $("pKpis").innerHTML = [
+      kpi("إجمالي الرواتب", money(all), ok.length + " معلمًا"),
+      kpi("حافز الإنترنت", got.length + " من " + ok.length, "مجموعه " + money(bon)),
+      kpi("متوسط الأجر", money(ok.length ? all / ok.length : 0)),
+      kpi("متوسط أجر الساعة", money(ok.reduce(function (a, t) { return a + t.hours; }, 0) ? (all - bon) / ok.reduce(function (a, t) { return a + t.hours; }, 0) : 0), "دون الحافز")
+    ].join("");
+  }
+  function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
+
+  // جدول طلاب معلم: حضور وتعويض وغياب وتأجيل لكل طالب
+  function studentsTable(list) {
+    var lbl = { done: "حضر", makeup: "تعويض", absent: "غياب دون تنبيه", pTeacher: "تأجيل من المعلم", pStudent: "تأجيل من الطالب" };
+    return '<div class="table-wrap"><table class="tbl"><thead><tr><th>الطالب</th>' + CNT.map(function (k) { return "<th>" + lbl[k] + "</th>"; }).join("") +
+      "<th>الدقائق</th><th>آخر حضور</th></tr></thead><tbody>" + list.map(function (x) {
+        return "<tr><td><b>" + esc(x.name) + '</b> <span class="note">' + esc(x.code || "") + "</span></td>" +
+          CNT.map(function (k) { return "<td" + (x[k] && (k === "absent" || k === "pStudent") && x[k] >= 2 ? ' class="warn-t"' : "") + ">" + (x[k] || "—") + "</td>"; }).join("") +
+          "<td>" + numf(x.minutes) + "</td><td>" + (x.last ? esc(fmtDate(x.last)) : '<span class="badge warn">لم يحضر</span>') + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  function statsCards(t) {
+    return '<div class="cards">' + [
+      kpi("الحصص", numf(t.sessions)), kpi("ساعات التدريس", numf(t.hours, 2)), kpi("التقييمات", numf(t.evaluations)),
+      kpi("غياب دون تنبيه", numf(cnt(t, "absent"))), kpi("التأجيل", numf(cnt(t, "pTeacher") + cnt(t, "pStudent")), "من المعلم: " + cnt(t, "pTeacher") + " — من الطلاب: " + cnt(t, "pStudent")),
+      kpi("إجمالي الأجر", money(t.salary), t.bonus > 0 ? "منه حافز الإنترنت " + money(t.bonus) : (t.bonusLimit ? "حافز الإنترنت بعد " + numf(Math.max(t.bonusLimit - t.sessions, 0)) + " حصة أخرى" : ""), "hl")
+    ].join("") + "</div>";
+  }
+
+  // المدير: إحصاءات طلاب معلم معيّن
+  function showDetail(name) {
+    var box = $("sDetail"); box.hidden = false;
+    box.innerHTML = "<h2>" + esc(name) + '</h2><div class="loading">جارٍ التحميل…</div>';
+    box.scrollIntoView({ behavior: "smooth" });
+    api("stats", { month: $("aMonth").value, as: name }).then(function (r) {
+      var t = r.stats;
+      box.innerHTML = '<div class="min-row" style="justify-content:space-between"><h2 style="margin:0">' + esc(name) + '</h2><button type="button" class="link-btn" data-t="' + esc(name) + '">فتح مجالسه ←</button></div>' +
+        (t.ok ? statsCards(t) + studentsTable(t.list || []) : '<div class="note">⚠ ' + esc(t.error || "") + "</div>");
+    }).catch(function (e) { box.innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+
+  // المعلم: إحصاءاته
+  function showMyStats() {
+    $("app").hidden = true; $("myStats").hidden = false;
+    $("msMonth").textContent = $("month").value || "";
+    $("msBody").innerHTML = '<div class="loading">جارٍ التحميل…</div>';
+    api("stats", { month: $("month").value }).then(function (r) {
+      var t = r.stats; $("msMonth").textContent = t.month;
+      $("msBody").innerHTML = t.ok ? statsCards(t) + '<section class="card"><h2>طلابي</h2>' + studentsTable(t.list || []) + "</section>" : '<div class="note">⚠ ' + esc(t.error || "") + "</div>";
+    }).catch(function (e) { $("msBody").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  $("myStatsBtn").addEventListener("click", showMyStats);
+  $("msBack").addEventListener("click", function () { $("myStats").hidden = true; $("app").hidden = false; });
+  $("pFilter").addEventListener("change", function () { if (OV) renderPay(OV); });
   function daysBetween(a, b) {
     var pa = a.split("-"), pb = b.split("-");
     return Math.round((Date.UTC(+pb[0], +pb[1] - 1, +pb[2]) - Date.UTC(+pa[0], +pa[1] - 1, +pa[2])) / 86400000);
@@ -566,6 +655,7 @@
   }
 
   $("adminView").addEventListener("click", function (e) {
+    var st = e.target.closest("[data-st]"); if (st) return showDetail(st.getAttribute("data-st"));
     var b = e.target.closest("[data-t]"); if (b) openAs(b.getAttribute("data-t"));
   });
   $("asSel").addEventListener("change", function () { openAs($("asSel").value); });
@@ -576,8 +666,9 @@
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      $("aSum").hidden = t !== "sum"; $("aArch").hidden = t !== "arch";
-      $("aMonth").hidden = t !== "sum"; $("aFresh").hidden = t !== "sum";
+      $("aSum").hidden = t === "arch"; $("aArch").hidden = t !== "arch";
+      $("aMonth").hidden = t === "arch"; $("aFresh").hidden = t === "arch";
+      document.querySelectorAll("[data-sec]").forEach(function (x) { x.hidden = x.getAttribute("data-sec") !== t; });
       if (t === "arch") $("aQ").focus();
     });
   });

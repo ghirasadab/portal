@@ -197,3 +197,6 @@ html.ga-dark .tab.on { color: #0b2210; }
 .tname-link { font-weight: 700; color: var(--green); cursor: pointer; background: none; border: none; font-family: inherit; font-size: 14.5px; padding: 0; }
 .tname-link:hover { text-decoration: underline; }
 .kpi .v .usd { display: block; font-size: 15px; color: var(--muted); font-weight: 700; }
+
+.tbl td.warn-t { color: var(--orange); font-weight: 700; }
+#myStats .cards { margin-bottom: 12px; }

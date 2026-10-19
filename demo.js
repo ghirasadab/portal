@@ -48,13 +48,18 @@
               families: { egp: { invoices: 168000, paid: 144838, due: 23162, credit: 9100, families: 176, unpaid: 21, partial: 6 },
                 usd: { invoices: 75, paid: 50, due: 25, credit: 0, families: 3, unpaid: 1, partial: 0 } } },
             teachers: [
-              { name: "أ. معلم تجريبي", ok: true, sessions: 46, hours: 34, evaluations: 2, bonus: 0, salary: 2380, lastRecord: key(today), today: { scheduled: 3, recorded: 2, extra: 0, pending: ["طالب تأسيس"] } },
-              { name: "أ. معلمة تجريبية", ok: true, onLeave: true, sessions: 29, hours: 31.08, evaluations: 0, bonus: 250, salary: 3435.83, lastRecord: dates[Math.max(0, today.getDate() - 9)].key, today: { scheduled: 2, recorded: 0, extra: 0, pending: ["مجموعة أدب: طالبة أولى، طالبة ثانية", "طالبة رابعة"] } },
+              { name: "أ. معلم تجريبي", ok: true, sessions: 46, hours: 34, evaluations: 2, bonus: 0, salary: 2380, beforeBonus: 2380, bonusLimit: 60, bonusValue: 250, counts: { done: 40, makeup: 4, absent: 2, pTeacher: 1, pStudent: 3 }, lastRecord: key(today), today: { scheduled: 3, recorded: 2, extra: 0, pending: ["طالب تأسيس"] } },
+              { name: "أ. معلمة تجريبية", ok: true, onLeave: true, sessions: 29, hours: 31.08, evaluations: 0, bonus: 250, salary: 3435.83, beforeBonus: 3185.83, bonusLimit: 25, bonusValue: 250, counts: { done: 27, makeup: 2, absent: 0, pTeacher: 0, pStudent: 1 }, lastRecord: dates[Math.max(0, today.getDate() - 9)].key, today: { scheduled: 2, recorded: 0, extra: 0, pending: ["مجموعة أدب: طالبة أولى، طالبة ثانية", "طالبة رابعة"] } },
               { name: "أ. معلم ثالث", ok: false, error: "لا يوجد تبويب «" + DATA.month + "»" }
             ] });
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }
         if (p.action === "init") return ok(JSON.parse(JSON.stringify(Object.assign({ ok: true, admin: ADMIN_DEMO }, DATA, ADMIN_DEMO ? { teacher: p.as } : {}))));
+        if (p.action === "stats") return ok({ ok: true, stats: { ok: true, name: p.as || "أ. معلم تجريبي", month: DATA.month, sessions: 46, hours: 34, evaluations: 2, salary: 2380, bonus: 0, bonusLimit: 60,
+          counts: { done: 40, makeup: 4, absent: 2, pTeacher: 1, pStudent: 3 },
+          list: [{ name: "طالب تجريبي أول", code: "ط.9001", done: 8, makeup: 1, absent: 0, pTeacher: 0, pStudent: 1, minutes: 540, last: key(today) },
+            { name: "طالبة ثانية", code: "ط.9003", done: 5, makeup: 0, absent: 2, pTeacher: 1, pStudent: 2, minutes: 300, last: dates[Math.max(0, today.getDate() - 6)].key },
+            { name: "طالب تأسيس", code: "ط.9005", done: 0, makeup: 0, absent: 0, pTeacher: 0, pStudent: 0, minutes: 0, last: "" }] } });
         if (p.action === "history") return ok({ ok: true, reports: reports[p.unitKey] || [] });
         if (p.action === "save") {
           var colors = {}; DATA.statuses.forEach(function (s) { colors[s.key] = s; });
