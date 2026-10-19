@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=202610191857">
+<link rel="stylesheet" href="style.css?v=202610192151">
 </head>
 <body>
 <header class="top">
@@ -66,10 +66,10 @@
     </div>
 
     <div id="aSum">
-      <div id="aLoading" class="loading">جارٍ جمع الأرقام من شيتات المعلمين… قد يستغرق ذلك نصف دقيقة.</div>
+      <div id="aLoading" class="loading">جارٍ جمع الأرقام من جداول المعلمين… قد يستغرق ذلك نصف دقيقة.</div>
       <div id="aBody" hidden>
         <div class="note" id="aUpdated"></div>
-        <h2>ملخص الفلوس — <span id="aMoneyMonth"></span></h2>
+        <h2>الملخص المالي — <span id="aMoneyMonth"></span></h2>
         <div class="cards" id="aMoney"></div>
         <div class="cards" id="aFamilies"></div>
 
@@ -87,7 +87,7 @@
               <tfoot></tfoot>
             </table>
           </div>
-          <div class="note">اضغط اسم المعلم لفتح مجالسه والتسجيل بدلًا منه. الأرقام من «ملخص الشهر» في شيت كل معلم.</div>
+          <div class="note">اضغط اسم المعلم لفتح مجالسه والتسجيل بدلًا منه. الأرقام من «ملخص الشهر» في جدول كل معلم.</div>
         </section>
       </div>
     </div>
@@ -96,7 +96,7 @@
       <section class="card">
         <h2>البحث في أرشيف التقارير</h2>
         <div class="min-row">
-          <input id="aQ" type="search" placeholder="اسم طالب أو أسرة أو كود أو معلم" style="flex:1">
+          <input id="aQ" type="search" placeholder="اسم طالب أو أسرة أو رمز أو معلم" style="flex:1">
           <button type="button" class="primary small" id="aGo">بحث</button>
         </div>
         <div id="aResults"></div>
@@ -164,7 +164,7 @@
 
         <div id="membersBox" hidden>
           <label>الطلاب في هذا المجلس</label>
-          <div class="note">اكتب نصيب كل طالب من الدقائق كما تكتبه في الشيت، وغيّر حالة من غاب منهم.</div>
+          <div class="note">اكتب نصيب كل طالب من الدقائق كما تكتبه في الجدول، وغيّر حالة من غاب منهم.</div>
           <div id="members" class="members"></div>
         </div>
 
@@ -192,8 +192,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610191857"></script>
-<script src="demo.js?v=202610191857"></script>
-<script src="app.js?v=202610191857"></script>
+<script src="config.js?v=202610192151"></script>
+<script src="demo.js?v=202610192151"></script>
+<script src="app.js?v=202610192151"></script>
 </body>
 </html>

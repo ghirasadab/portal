@@ -179,7 +179,7 @@
     var recorded = cur.some(function (c) { return c[1]; });
     if (recorded) {
       $("existing").hidden = false;
-      $("existing").innerHTML = "مسجَّل في الشيت لهذا اليوم: " + u.members.map(function (m, k) {
+      $("existing").innerHTML = "مسجَّل في الجدول لهذا اليوم: " + u.members.map(function (m, k) {
         var c = cur[k];
         if (!c[1]) return esc(m.name) + ": لا شيء";
         var st = stMeta(c[1]);
@@ -359,7 +359,7 @@
       $("confirm").hidden = true;
       $("existing").hidden = true;
       $("sendBox").hidden = false;
-      $("savedLine").textContent = res.reportSaved ? "✓ سُجّلت الحصة في شيتك، وحُفظ التقرير في الأرشيف." : "✓ سُجّلت الحصة في شيتك.";
+      $("savedLine").textContent = res.reportSaved ? "✓ سُجّلت الحصة في جدولك، وحُفظ التقرير في الأرشيف." : "✓ سُجّلت الحصة في جدولك.";
       var hasReport = data.report && ["studied", "performance", "notes", "homework", "individual"].some(function (k) { return String(data.report[k] || "").trim(); });
       $("wa").hidden = !hasReport; $("copy").hidden = !hasReport;
       if (hasReport) $("wa").focus();
@@ -525,7 +525,7 @@
           (t.today.pending.length ? '<div class="pend">لم يُسجَّل: ' + esc(t.today.pending.join(" | ")) + "</div>" : "") +
           (t.today.extra ? '<div class="pend">وسجّل ' + t.today.extra + " مجلسًا خارج جدول اليوم</div>" : "") +
           '</div><div class="cnt ' + (left > 0 ? "no" : "ok") + '">' + t.today.recorded + " / " + t.today.scheduled + "</div></div>";
-      }).join("") : '<div class="note">لا توجد مجالس مجدولة اليوم حسب «أيام الدرس» في الشيتات.</div>';
+      }).join("") : '<div class="note">لا توجد مجالس مجدولة اليوم حسب «أيام الدرس» في الجداول.</div>';
     }
 
     // جدول المعلمين
