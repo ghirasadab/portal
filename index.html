@@ -20,7 +20,7 @@
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-32x32.jpeg" sizes="32x32">
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-192x192.jpeg" sizes="192x192">
 <link rel="apple-touch-icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-180x180.jpeg">
-<link rel="stylesheet" href="style.css?v=202610192328">
+<link rel="stylesheet" href="style.css?v=202610192334">
 </head>
 <body>
 <header class="top">
@@ -90,7 +90,7 @@
           <section class="card">
             <h2>المعلمون — <span class="mLbl"></span></h2>
             <div class="table-wrap"><table class="tbl" id="sTable">
-              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>حضور</th><th>تعويض</th><th>غياب دون تنبيه</th><th>تأجيل من المعلم</th><th>تأجيل من الطالب</th><th>آخر تسجيل</th></tr></thead>
+              <thead><tr><th>المعلم</th><th>المجالس</th><th>الساعات</th><th>التقييمات</th><th>حضور</th><th>تعويض</th><th>غياب دون تنبيه</th><th>تأجيل من المعلم</th><th>تأجيل من الطالب</th><th>آخر تسجيل</th></tr></thead>
               <tbody></tbody><tfoot></tfoot></table></div>
             <div class="note">اضغط اسم المعلم لعرض إحصاءات طلابه. الحضور والغياب والتأجيل يُعدّ لكل مجلس مرة واحدة في اليوم.</div>
           </section>
@@ -109,7 +109,7 @@
               </select>
             </div>
             <div class="table-wrap"><table class="tbl" id="pTable">
-              <thead><tr><th>المعلم</th><th>الحصص</th><th>الساعات</th><th>التقييمات</th><th>الأجر قبل الحافز</th><th>حدّ الحافز</th><th>الحافز</th><th>إجمالي الأجر</th><th>ملاحظة</th></tr></thead>
+              <thead><tr><th>المعلم</th><th>المجالس</th><th>الساعات</th><th>التقييمات</th><th>الأجر قبل الحافز</th><th>حدّ الحافز</th><th>الحافز</th><th>إجمالي الأجر</th><th>ملاحظة</th></tr></thead>
               <tbody></tbody><tfoot></tfoot></table></div>
             <div class="note">الأرقام من «ملخص الشهر» في جدول كل معلم.</div>
           </section>
@@ -179,7 +179,7 @@
     <section class="card main" id="panel">
       <div id="empty" class="empty-state">
         <div class="empty-icon">📖</div>
-        <p>اختر مجلسًا من القائمة لتسجيل الحصة وكتابة التقرير.</p>
+        <p>اختر مجلسًا من القائمة لتسجيل المجلس وكتابة التقرير.</p>
       </div>
 
       <div id="evalForm" hidden>
@@ -221,7 +221,7 @@
         <div class="statuses" id="statuses"></div>
 
         <div id="minutesBox" class="field" hidden>
-          <label for="minutes">مدة الحصة (بالدقائق)</label>
+          <label for="minutes">مدة المجلس (بالدقائق)</label>
           <div class="min-row">
             <input id="minutes" type="text" inputmode="numeric" placeholder="60">
             <button type="button" class="chip" data-min="30">30</button>
@@ -237,7 +237,7 @@
         </div>
 
         <div id="reportBox" class="report" hidden>
-          <h2>تقرير الحصة</h2>
+          <h2>تقرير المجلس</h2>
           <div class="field"><label for="rStudied">ما درسناه</label><textarea id="rStudied" rows="3"></textarea></div>
           <div class="field"><label for="rPerf" id="rPerfLbl">أداء الطالب في المجلس</label><textarea id="rPerf" rows="2"></textarea></div>
           <div class="field"><label for="rNotes">ملاحظات أو تنبيهات</label><textarea id="rNotes" rows="2"></textarea></div>
@@ -260,8 +260,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610192328"></script>
-<script src="demo.js?v=202610192328"></script>
-<script src="app.js?v=202610192328"></script>
+<script src="config.js?v=202610192334"></script>
+<script src="demo.js?v=202610192334"></script>
+<script src="app.js?v=202610192334"></script>
 </body>
 </html>

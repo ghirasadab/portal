@@ -62,7 +62,7 @@
   function dateIdx(key) { for (var i = 0; i < D.dates.length; i++) if (D.dates[i].key === key) return i; return -1; }
   function fmtDate(key) { var p = key.split("-"); return Number(p[2]) + "/" + Number(p[1]) + "/" + p[0]; }
   function weekdayOf(key) { var i = dateIdx(key); return i === -1 ? "" : D.dates[i].weekday; }
-  function sessionsWord(n) { return n === 1 ? "حصة واحدة" : n === 2 ? "حصتان" : (n >= 3 && n <= 10 ? n + " حصص" : n + " حصة"); }
+  function sessionsWord(n) { return n === 1 ? "مجلس واحد" : n === 2 ? "مجلسان" : (n >= 3 && n <= 10 ? n + " مجالس" : n + " مجلسًا"); }
   function variants(day) {
     var v = norm(day);
     return v === "الاثنين" ? ["الاثنين", "الاتنين", "الإثنين"].map(norm) : [v];
@@ -283,7 +283,7 @@
     $("save").classList.remove("confirming");
     $("save").disabled = false;
     var held = status === "done" || status === "makeup";
-    $("save").textContent = held ? "حفظ الحصة والتقرير" : "حفظ";
+    $("save").textContent = held ? "حفظ المجلس والتقرير" : "حفظ";
   }
 
   /* ---------------- الحفظ ---------------- */
@@ -309,7 +309,7 @@
     }
     for (var i = 0; i < members.length; i++) {
       var ms = stMeta(members[i].status);
-      if (ms.minutes && !(Number(members[i].minutes) > 0)) throw new Error("اكتب مدة الحصة بالدقائق" + (group ? " لـ" + members[i].name : "") + ".");
+      if (ms.minutes && !(Number(members[i].minutes) > 0)) throw new Error("اكتب مدة المجلس بالدقائق" + (group ? " لـ" + members[i].name : "") + ".");
     }
     var report = held ? {
       studied: $("rStudied").value, performance: $("rPerf").value, notes: $("rNotes").value,
@@ -328,7 +328,7 @@
     if (empty && !armed && !overwrite) {
       armed = true;
       $("confirm").hidden = false;
-      $("confirm").textContent = "لم تكتب تقريرًا لهذه الحصة. اضغط «حفظ» مرة أخرى لتسجيل الحصة دون تقرير.";
+      $("confirm").textContent = "لم تكتب تقريرًا لهذا المجلس. اضغط «حفظ» مرة أخرى لتسجيل المجلس دون تقرير.";
       $("save").classList.add("confirming"); $("save").textContent = "حفظ دون تقرير";
       return;
     }
@@ -362,7 +362,7 @@
       $("confirm").hidden = true;
       $("existing").hidden = true;
       $("sendBox").hidden = false;
-      $("savedLine").textContent = res.reportSaved ? "✓ سُجّلت الحصة في جدولك، وحُفظ التقرير في الأرشيف." : "✓ سُجّلت الحصة في جدولك.";
+      $("savedLine").textContent = res.reportSaved ? "✓ سُجّل المجلس في جدولك، وحُفظ التقرير في الأرشيف." : "✓ سُجّل المجلس في جدولك.";
       var hasReport = data.report && ["studied", "performance", "notes", "homework", "individual"].some(function (k) { return String(data.report[k] || "").trim(); });
       $("wa").hidden = !hasReport; $("copy").hidden = !hasReport;
       if (hasReport) $("wa").focus();
@@ -528,7 +528,7 @@
     $("aMoney").innerHTML = r ? [
       kpi("مجموع الوارد", both(r.income, r.incomeUsd), "الدفعات المسجلة عن الشهر"),
       kpi("رواتب المعلمين", money(r.salaries)),
-      kpi("المتبقي للأسر", both(r.familiesCredit, r.familiesCreditUsd), "حصص مدفوعة لم تُعطَ بعد"),
+      kpi("المتبقي للأسر", both(r.familiesCredit, r.familiesCreditUsd), "مجالس مدفوعة لم تُعقد بعد"),
       kpi("صافي المال", money(r.net), r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : "", "hl")
     ].join("") : '<div class="note">لا يوجد صف لهذا الشهر في «التقرير المالي».</div>';
     var fm = o.money.families;
@@ -569,7 +569,7 @@
   function badgesOf(t) { return (t.onLeave ? '<span class="badge">إجازة</span>' : "") + (t.stopAfter ? '<span class="badge warn">يتوقف بعد ' + esc(t.stopAfter) + "</span>" : ""); }
   function tBtn(t, attr) { return '<button type="button" class="tname" ' + attr + '="' + esc(t.name) + '">' + esc(t.name) + "</button>" + badgesOf(t); }
 
-  // الإحصاءات: لكل معلم عدد الحصص والساعات والتقييمات والحالات
+  // الإحصاءات: لكل معلم عدد المجالس والساعات والتقييمات والحالات
   function renderStats(o) {
     var ok = o.teachers.filter(function (t) { return t.ok; });
     var tot = { s: 0, h: 0, e: 0 }; CNT.forEach(function (k) { tot[k] = 0; });
@@ -586,7 +586,7 @@
       CNT.map(function (k) { return "<td>" + numf(tot[k]) + "</td>"; }).join("") + "<td></td></tr>";
     var planned = tot.done + tot.makeup + tot.absent + tot.pTeacher + tot.pStudent;
     $("sKpis").innerHTML = [
-      kpi("ساعات التدريس", numf(tot.h, 1), numf(tot.s) + " حصة لدى " + ok.length + " معلمًا"),
+      kpi("ساعات التدريس", numf(tot.h, 1), sessionsWord(tot.s) + " لدى " + ok.length + " معلمًا"),
       kpi("التقييمات", numf(tot.e)),
       kpi("نسبة انعقاد المجالس", planned ? Math.round((tot.done + tot.makeup) * 100 / planned) + "%" : "—", "من المجالس المسجَّلة بأي حالة"),
       kpi("غياب دون تنبيه", numf(tot.absent), "", tot.absent ? "warn" : ""),
@@ -604,9 +604,9 @@
     $("pTable").querySelector("tbody").innerHTML = rows.map(function (t) {
       tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.a += t.beforeBonus || 0; tot.b += t.bonus; tot.p += t.salary;
       var note = t.bonus > 0 ? '<span class="badge">✓ حصل على الحافز</span>'
-        : (t.bonusLimit ? '<span class="badge warn">ينقصه ' + numf(Math.max(t.bonusLimit - t.sessions, 0)) + " حصة</span>" : "—");
+        : (t.bonusLimit ? '<span class="badge warn">ينقصه ' + sessionsWord(Math.max(t.bonusLimit - t.sessions, 0)) + "</span>" : "—");
       return "<tr><td>" + tBtn(t, "data-st") + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td><td>" +
-        money(t.beforeBonus) + "</td><td>" + (t.bonusLimit ? numf(t.bonusLimit) + " حصة" : "—") + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td><td>" + note + "</td></tr>";
+        money(t.beforeBonus) + "</td><td>" + (t.bonusLimit ? sessionsWord(t.bonusLimit) : "—") + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td><td>" + note + "</td></tr>";
     }).join("") || '<tr><td colspan="9" class="note">لا يوجد معلمون في هذا التصنيف.</td></tr>';
     $("pTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي (" + rows.length + ")</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" +
       money(tot.a) + "</td><td></td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td></td></tr>";
@@ -632,9 +632,9 @@
   }
   function statsCards(t) {
     return '<div class="cards">' + [
-      kpi("الحصص", numf(t.sessions)), kpi("ساعات التدريس", numf(t.hours, 2)), kpi("التقييمات", numf(t.evaluations)),
+      kpi("المجالس", numf(t.sessions)), kpi("ساعات التدريس", numf(t.hours, 2)), kpi("التقييمات", numf(t.evaluations)),
       kpi("غياب دون تنبيه", numf(cnt(t, "absent"))), kpi("التأجيل", numf(cnt(t, "pTeacher") + cnt(t, "pStudent")), "من المعلم: " + cnt(t, "pTeacher") + " — من الطلاب: " + cnt(t, "pStudent")),
-      kpi("إجمالي الأجر", money(t.salary), t.bonus > 0 ? "منه حافز الإنترنت " + money(t.bonus) : (t.bonusLimit ? "حافز الإنترنت بعد " + numf(Math.max(t.bonusLimit - t.sessions, 0)) + " حصة أخرى" : ""), "hl")
+      kpi("إجمالي الأجر", money(t.salary), t.bonus > 0 ? "منه حافز الإنترنت " + money(t.bonus) : (t.bonusLimit ? "يبقى لحافز الإنترنت " + sessionsWord(Math.max(t.bonusLimit - t.sessions, 0)) : ""), "hl")
     ].join("") + "</div>";
   }
 
@@ -741,8 +741,8 @@
       '<div class="field"><label>العمر</label><input class="rf-age" value="' + esc(x.age || "") + '"></div></div>' +
       '<div class="field"><label>ولي الأمر</label><input class="rf-parent" list="rfFamilies" placeholder="اكتب اسم ولي الأمر أو اختر أسرة مسجَّلة">' +
       '<label class="chk"><input type="checkbox" class="rf-new"> أسرة جديدة</label></div>' +
-      '<div class="row2"><div class="field"><label>الباقة (عدد الحصص)</label><input class="rf-pkg" inputmode="decimal"></div>' +
-      '<div class="field"><label>سعر الحصة</label><input class="rf-price" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
+      '<div class="row2"><div class="field"><label>الباقة (عدد المجالس)</label><input class="rf-pkg" inputmode="decimal"></div>' +
+      '<div class="field"><label>سعر المجلس</label><input class="rf-price" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
       '<div class="field"><label>المعلم</label><select class="rf-teacher date-sel"><option value="">— اختر —</option>' + (EVS ? EVS.teachers.map(function (n) { return "<option>" + esc(n) + "</option>"; }).join("") : "") + "</select></div>" +
       '<div class="field"><label>طريقة الإضافة</label><select class="rf-mode date-sel"><option value="single">مجلس فردي</option><option value="newgroup">مجموعة جديدة</option>' +
       '<option value="join">إلى مجموعة موجودة</option><option value="pair">مع طالب فردي ليصيرا مجموعة</option></select>' +
@@ -813,7 +813,7 @@
     if (mode === "join") p.groupStart = q(".rf-target");
     if (mode === "pair") p.pairCode = q(".rf-target");
     if (!p.parent) return showMsg("⚠ اكتب اسم ولي الأمر.", false);
-    if (p.price === "") return showMsg("⚠ اكتب سعر الحصة (0 إن كان تطوّعًا).", false);
+    if (p.price === "") return showMsg("⚠ اكتب سعر المجلس (0 إن كان تطوّعًا).", false);
     if (!p.teacher) return showMsg("⚠ اختر المعلم.", false);
     if ((mode === "join" && !p.groupStart) || (mode === "pair" && !p.pairCode)) return showMsg("⚠ اختر " + (mode === "join" ? "المجموعة" : "الطالب الفردي") + ".", false);
     btn.disabled = true; btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
