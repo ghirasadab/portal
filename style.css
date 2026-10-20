@@ -246,9 +246,10 @@ html.ga-dark .tab.on { color: #0b2210; }
 .inv-card-head {
   background: linear-gradient(135deg, #1E6B24, #0E3B13);
   color: #fff; padding: 16px 20px;
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
 }
-.inv-head-logo { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.inv-head-logo { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; border-left: 1px solid rgba(255,255,255,.25); padding-left: 24px; margin-left: 0; }
+html[dir="rtl"] .inv-head-logo { border-left: none; border-right: 1px solid rgba(255,255,255,.25); padding-left: 0; padding-right: 24px; margin-right: 0; }
 .inv-logo-img { height: 44px; width: auto; filter: brightness(0) invert(1); display: block; }
 .inv-logo-sub { font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .04em; white-space: nowrap; }
 .inv-head-info { flex: 1; min-width: 0; }
@@ -257,11 +258,10 @@ html.ga-dark .tab.on { color: #0b2210; }
 
 /* شريط "تفاصيل المجالس" */
 .inv-meta-strip {
-  background: var(--beige); border-bottom: 1px solid var(--line);
-  padding: 7px 20px;
+  background: var(--orange); border-bottom: none;
+  padding: 6px 20px;
 }
-html.ga-dark .inv-meta-strip { background: var(--mint); }
-.inv-meta-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.inv-meta-lbl { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.9); text-transform: uppercase; letter-spacing: .06em; }
 
 /* جدول الطلاب */
 .inv-card-body { padding: 16px 20px 14px; }
@@ -289,7 +289,7 @@ html.ga-dark .inv-summary-box { background: var(--mint); }
 .isum-row.total {
   font-size: 16px; font-weight: 700;
   border-top: 1.5px solid var(--line); padding-top: 9px; margin-top: 3px;
-  color: var(--green);
+  color: var(--orange);
 }
 .inum-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .inum-val.credit { color: var(--ok); }

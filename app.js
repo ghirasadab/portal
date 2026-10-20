@@ -967,7 +967,7 @@
         '</div>' +
         '<div class="inv-head-info">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
-          '<div class="inv-card-meta">' + esc(inv.month || "") + ' · ' + esc(inv.code) + '</div>' +
+          '<div class="inv-card-meta">' + esc(inv.month || "") + '</div>' +
         '</div>' +
       '</div>' +
       // شريط الاستهلاك
