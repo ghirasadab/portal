@@ -975,7 +975,7 @@
       // جدول الطلاب
       '<div class="inv-card-body">' +
         '<table class="inv-tbl">' +
-          '<thead><tr><th>الطالب</th><th>الباقة</th><th>المنتهية</th><th>المبلغ</th></tr></thead>' +
+          '<thead><tr><th>الطالب</th><th>الباقة</th><th>المنتهية</th><th>قيمة الباقة</th></tr></thead>' +
           '<tbody>' + (studRows || '<tr><td colspan="4" class="inv-empty">لا توجد مجالس</td></tr>') + '</tbody>' +
         '</table>' +
         // ملخص
@@ -984,10 +984,15 @@
           prevRow +
           discRow +
           paidRow +
-          (sm.due <= 0
-            ? '<div class="isum-row total credit"><span>رصيد لصالحكم</span><span class="inum-val">' + fmt(Math.abs(sm.due)) + " " + cur + '</span></div>'
-            : '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
+          (sm.due > 0
+            ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
+            : sm.due < 0
+              ? '<div class="isum-row total credit"><span>رصيد لصالحكم</span><span class="inum-val">' + fmt(Math.abs(sm.due)) + " " + cur + '</span></div>'
+              : '<div class="isum-row total credit"><span>المطلوب دفعه</span><span class="inum-val">تم السداد</span></div>'
           ) +
+          (sm.unusedCount > 0
+            ? '<div class="isum-row muted"><span>مجالس مدفوعة متبقية: ' + fmt(sm.unusedCount) + ' مجلس</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
+            : "") +
         '</div>' +
       '</div>' +
       // فوتر
