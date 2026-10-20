@@ -240,6 +240,7 @@ html.ga-dark .tab.on { color: #0b2210; }
 .inv-card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
   margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow); max-width: 600px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%231B5E20' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M40 12l8 20 20 8-20 8-8 20-8-20-20-8 20-8z'/%3E%3Crect x='26' y='26' width='28' height='28' transform='rotate(45 40 40)'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 /* هيدر: خلفية خضراء + لوجو + اسم الأسرة */
@@ -254,7 +255,11 @@ html[dir="rtl"] .inv-head-logo { border-left: none; border-right: 1px solid rgba
 .inv-logo-sub { font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .04em; white-space: nowrap; }
 .inv-head-info { flex: 1; min-width: 0; }
 .inv-card-title { font-family: "Kufam", inherit; font-size: 18px; font-weight: 700; line-height: 1.3; }
-.inv-card-meta { font-size: 12px; opacity: .8; margin-top: 2px; }
+.inv-card-meta { font-size: 12px; opacity: .8; }
+.inv-head-bottom { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.inv-status-chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .03em; }
+.inv-status-chip.paid { background: rgba(255,255,255,.18); color: #d4f5d4; }
+.inv-status-chip.partial { background: rgba(255,165,0,.25); color: #ffe5a0; }
 
 /* شريط "تفاصيل المجالس" */
 .inv-meta-strip {
@@ -281,29 +286,18 @@ html.ga-dark .inv-tbl th { background: var(--mint); }
 /* ملخص الفاتورة */
 .inv-summary-box {
   background: var(--beige); border: 1px solid var(--line); border-radius: 10px;
-  padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px;
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;
 }
 html.ga-dark .inv-summary-box { background: var(--mint); }
-.isum-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; }
-.isum-row.muted { color: var(--muted); font-size: 13px; }
+.isum-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.isum-row.muted { color: var(--muted); font-size: 12.5px; }
 .isum-row.total {
-  font-size: 16px; font-weight: 700;
-  border-top: 1.5px solid var(--line); padding-top: 9px; margin-top: 3px;
+  font-size: 15px; font-weight: 700;
+  border-top: 1.5px solid var(--line); padding-top: 7px; margin-top: 2px;
   color: var(--orange);
 }
 .inum-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .inum-val.credit { color: var(--ok); }
-
-/* badge الحالة */
-.inv-status {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
-  margin-bottom: 4px;
-}
-.inv-status.paid { background: #d4f5dc; color: #1a5c2a; }
-html.ga-dark .inv-status.paid { background: #1a3b22; color: #8fd096; }
-.inv-status.partial { background: #fde2cf; color: #7a3100; }
-html.ga-dark .inv-status.partial { background: #3a2010; color: #ffa94d; }
 
 /* فوتر */
 .inv-card-foot {

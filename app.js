@@ -944,9 +944,9 @@
     // ملخص مالي
     var sm = inv.summary || {};
     var isPaid = sm.due !== undefined && sm.due <= 0;
-    var statusBadge = isPaid
-      ? '<div class="inv-status paid"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> تم السداد بالكامل</div>'
-      : '<div class="inv-status partial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="2"/></svg> متبقٍ ' + fmt(sm.due) + " " + cur + '</div>';
+    var statusChip = isPaid
+      ? '<span class="inv-status-chip paid">✓ مسدَّد</span>'
+      : '<span class="inv-status-chip partial">● متبقٍ</span>';
 
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
       ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
@@ -967,7 +967,7 @@
         '</div>' +
         '<div class="inv-head-info">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
-          '<div class="inv-card-meta">' + esc(inv.month || "") + '</div>' +
+          '<div class="inv-head-bottom"><span class="inv-card-meta">' + esc(inv.month || "") + '</span>' + statusChip + '</div>' +
         '</div>' +
       '</div>' +
       // شريط الاستهلاك
@@ -988,7 +988,6 @@
           paidRow +
           '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>' +
         '</div>' +
-        statusBadge +
       '</div>' +
       // فوتر
       '<div class="inv-card-foot">' +
