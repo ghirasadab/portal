@@ -959,6 +959,7 @@
         '<div class="inv-head-logo">' +
           '<img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" class="inv-logo-img">' +
         '</div>' +
+        '<div class="inv-head-divider"></div>' +
         '<div class="inv-head-info">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
           '<div class="inv-card-meta">' + esc(inv.month || "") + '</div>' +

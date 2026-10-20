@@ -243,19 +243,20 @@ html.ga-dark .tab.on { color: #0b2210; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%231B5E20' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M40 12l8 20 20 8-20 8-8 20-8-20-20-8 20-8z'/%3E%3Crect x='26' y='26' width='28' height='28' transform='rotate(45 40 40)'/%3E%3C/g%3E%3C/svg%3E");
 }
 
-/* هيدر: خلفية خضراء + لوجو + اسم الأسرة */
+/* هيدر: خلفية خضراء + لوجو فوق + اسم الأسرة تحت */
 .inv-card-head {
   background: linear-gradient(135deg, #1E6B24, #0E3B13);
-  color: #fff; padding: 16px 20px;
-  display: flex; align-items: center; gap: 36px; flex-wrap: wrap;
+  color: #fff; padding: 18px 20px;
+  display: flex; align-items: center; gap: 0; flex-wrap: nowrap;
 }
-.inv-head-logo { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; border-left: 1px solid rgba(255,255,255,.25); padding-left: 24px; margin-left: 0; }
-html[dir="rtl"] .inv-head-logo { border-left: none; border-right: 1px solid rgba(255,255,255,.25); padding-left: 0; padding-right: 24px; margin-right: 0; }
-.inv-logo-img { height: 44px; width: auto; filter: brightness(0) invert(1); display: block; }
-.inv-logo-sub { font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .04em; white-space: nowrap; }
-.inv-head-info { flex: 1; min-width: 0; }
-.inv-card-title { font-family: "Kufam", inherit; font-size: 18px; font-weight: 700; line-height: 1.3; }
-.inv-card-meta { font-size: 12px; opacity: .8; margin-top: 2px; }
+.inv-head-logo { display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 24px 0 0; }
+html[dir="rtl"] .inv-head-logo { padding: 0 0 0 24px; }
+.inv-logo-img { height: 48px; width: auto; filter: brightness(0) invert(1); display: block; }
+.inv-head-divider { width: 1px; background: rgba(255,255,255,.25); align-self: stretch; flex-shrink: 0; }
+.inv-head-info { flex: 1; min-width: 0; padding: 0 0 0 24px; text-align: center; }
+html[dir="rtl"] .inv-head-info { padding: 0 24px 0 0; }
+.inv-card-title { font-family: "Kufam", inherit; font-size: 20px; font-weight: 700; line-height: 1.3; }
+.inv-card-meta { font-size: 13px; opacity: .8; margin-top: 4px; }
 
 /* شريط "تفاصيل المجالس" */
 .inv-meta-strip {
@@ -268,15 +269,17 @@ html[dir="rtl"] .inv-head-logo { border-left: none; border-right: 1px solid rgba
 .inv-card-body { padding: 16px 20px 14px; }
 .inv-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 16px; }
 .inv-tbl th {
-  text-align: right; font-size: 11px; font-weight: 700; color: var(--muted);
+  text-align: center; font-size: 11px; font-weight: 700; color: var(--muted);
   padding: 6px 8px; background: var(--beige); border-bottom: 1.5px solid var(--line);
 }
+.inv-tbl th:first-child { text-align: right; }
+html[dir="rtl"] .inv-tbl th:first-child { text-align: right; }
 html.ga-dark .inv-tbl th { background: var(--mint); }
-.inv-tbl td { padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.inv-tbl td { padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: center; }
 .inv-tbl tr:last-child td { border-bottom: none; }
-.inv-tbl .iname { font-weight: 600; }
+.inv-tbl .iname { font-weight: 600; text-align: right; }
 .inv-tbl .inum { text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
-.inv-tbl .iamt { text-align: left; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.inv-tbl .iamt { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .inv-empty { text-align: center; color: var(--muted); padding: 14px; font-size: 13px; }
 
 /* ملخص الفاتورة */
