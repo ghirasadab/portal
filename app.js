@@ -995,7 +995,7 @@
   }
 
   /* ---------------- طباعة الفاتورة ---------------- */
-  function printInvCard(btn) {
+  window.printInvCard = function printInvCard(btn) {
     var card = btn.closest(".inv-card");
     if (!card) return;
     var cardHtml = card.outerHTML;
