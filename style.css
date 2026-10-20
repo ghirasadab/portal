@@ -236,62 +236,107 @@ html.ga-dark .tab.on { color: #0b2210; }
 .badge.ok { background: #c8f0d0; color: #1a5c2a; }
 
 /* بطاقة الفاتورة */
+/* ===== بطاقة الفاتورة ===== */
 .inv-card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-  margin-bottom: 20px; overflow: hidden; box-shadow: var(--shadow);
+  margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow); max-width: 600px;
 }
+
+/* هيدر: خلفية خضراء + لوجو + اسم الأسرة */
 .inv-card-head {
-  background: var(--green); color: #fff; padding: 14px 18px;
-  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: linear-gradient(135deg, #1E6B24, #0E3B13);
+  color: #fff; padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
-html.ga-dark .inv-card-head { background: var(--green-2); }
-.inv-card-title { font-family: "Kufam", inherit; font-size: 17px; font-weight: 700; }
-.inv-card-meta { font-size: 12.5px; opacity: .85; }
-.inv-card-body { padding: 14px 16px; }
-.inv-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 14px; }
-.inv-tbl th { text-align: right; font-size: 12px; color: var(--muted); font-weight: 700; padding: 5px 6px; border-bottom: 1.5px solid var(--line); }
-.inv-tbl td { padding: 7px 6px; border-bottom: 1px dashed var(--line); vertical-align: middle; }
+.inv-head-logo { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.inv-logo-img { height: 44px; width: auto; filter: brightness(0) invert(1); display: block; }
+.inv-logo-sub { font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .04em; white-space: nowrap; }
+.inv-head-info { flex: 1; min-width: 0; }
+.inv-card-title { font-family: "Kufam", inherit; font-size: 18px; font-weight: 700; line-height: 1.3; }
+.inv-card-meta { font-size: 12px; opacity: .8; margin-top: 2px; }
+
+/* شريط "تفاصيل المجالس" */
+.inv-meta-strip {
+  background: var(--beige); border-bottom: 1px solid var(--line);
+  padding: 7px 20px;
+}
+html.ga-dark .inv-meta-strip { background: var(--mint); }
+.inv-meta-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+/* جدول الطلاب */
+.inv-card-body { padding: 16px 20px 14px; }
+.inv-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 16px; }
+.inv-tbl th {
+  text-align: right; font-size: 11px; font-weight: 700; color: var(--muted);
+  padding: 6px 8px; background: var(--beige); border-bottom: 1.5px solid var(--line);
+}
+html.ga-dark .inv-tbl th { background: var(--mint); }
+.inv-tbl td { padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .inv-tbl tr:last-child td { border-bottom: none; }
 .inv-tbl .iname { font-weight: 600; }
-.inv-tbl .inum { text-align: center; color: var(--muted); }
-.inv-tbl .iamt { text-align: left; font-weight: 600; font-variant-numeric: tabular-nums; }
+.inv-tbl .inum { text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.inv-tbl .iamt { text-align: left; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.inv-empty { text-align: center; color: var(--muted); padding: 14px; font-size: 13px; }
 
 /* ملخص الفاتورة */
 .inv-summary-box {
   background: var(--beige); border: 1px solid var(--line); border-radius: 10px;
-  padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px;
 }
 html.ga-dark .inv-summary-box { background: var(--mint); }
 .isum-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; }
-.isum-row.muted { color: var(--muted); }
-.isum-row.total { font-size: 16px; font-weight: 700; border-top: 1.5px solid var(--line); padding-top: 8px; margin-top: 2px; color: var(--green); }
-.inum-val { font-variant-numeric: tabular-nums; font-weight: 500; }
+.isum-row.muted { color: var(--muted); font-size: 13px; }
+.isum-row.total {
+  font-size: 16px; font-weight: 700;
+  border-top: 1.5px solid var(--line); padding-top: 9px; margin-top: 3px;
+  color: var(--green);
+}
+.inum-val { font-variant-numeric: tabular-nums; font-weight: 600; }
+.inum-val.credit { color: var(--ok); }
 
 /* badge الحالة */
-.inv-sbadge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; margin-bottom: 10px; }
-.inv-sbadge.paid { background: #d4f5dc; color: #1a5c2a; }
-html.ga-dark .inv-sbadge.paid { background: #1a3b22; color: #8fd096; }
-.inv-sbadge.partial { background: #fde2cf; color: #7a3100; }
-html.ga-dark .inv-sbadge.partial { background: #3a2010; color: #ffa94d; }
+.inv-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.inv-status.paid { background: #d4f5dc; color: #1a5c2a; }
+html.ga-dark .inv-status.paid { background: #1a3b22; color: #8fd096; }
+.inv-status.partial { background: #fde2cf; color: #7a3100; }
+html.ga-dark .inv-status.partial { background: #3a2010; color: #ffa94d; }
 
-/* فوتر الفاتورة */
+/* فوتر */
 .inv-card-foot {
   background: var(--beige); border-top: 1px solid var(--line);
-  padding: 10px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 11px 20px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 html.ga-dark .inv-card-foot { background: var(--mint); }
+.inv-foot-note { font-size: 12px; color: var(--muted); }
+.inv-foot-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .wa-inv-btn {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--wa); color: #fff; text-decoration: none;
   font-size: 13px; font-weight: 700; padding: 7px 16px; border-radius: 999px; transition: opacity .15s;
 }
 .wa-inv-btn:hover { opacity: .88; }
-.inv-print-btn { font-size: 13px; padding: 6px 14px; }
+.inv-print-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--line); color: var(--ink);
+  font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px;
+  cursor: pointer; font-family: inherit; transition: background .15s;
+}
+.inv-print-btn:hover { background: var(--line); }
 
-/* طباعة: اخفي كل شيء ما عدا الفواتير */
+/* طباعة */
 @media print {
   .top, .admin-tabs, .card:not(.inv-print-section), #invFamilyList, .inv-card-foot,
   button, select, input, .msg, .as-bar, .loading { display: none !important; }
-  .inv-card { border: none; box-shadow: none; break-inside: avoid; page-break-inside: avoid; }
+  .inv-card {
+    border: 1px solid #ccc; box-shadow: none;
+    break-inside: avoid; page-break-inside: avoid; max-width: 100%;
+  }
+  .inv-card-head { background: #1B5E20 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-tbl th { background: #f0f0e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-summary-box { background: #f5f0e1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { background: #fff; font-size: 13px; }
 }

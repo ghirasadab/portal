@@ -927,7 +927,7 @@
   }
 
   function buildInvoiceCard(inv) {
-    var cur = esc(inv.currency || "ج");
+    var cur = esc(inv.currency || "جنيه");
     var waUrl = inv.waPhone ? "https://wa.me/" + inv.waPhone.replace(/\D/g, "") +
       "?text=" + encodeURIComponent("فاتورة غراس الأدب — " + (inv.month || "")) : "";
 
@@ -943,44 +943,60 @@
 
     // ملخص مالي
     var sm = inv.summary || {};
-    var isPaid = sm.due === 0 || sm.due <= 0;
+    var isPaid = sm.due !== undefined && sm.due <= 0;
     var statusBadge = isPaid
-      ? '<span class="inv-sbadge paid">✓ تم السداد بالكامل</span>'
-      : '<span class="inv-sbadge partial">● متبقٍ ' + fmt(sm.due) + " " + cur + '</span>';
+      ? '<div class="inv-status paid"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> تم السداد بالكامل</div>'
+      : '<div class="inv-status partial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="2"/></svg> متبقٍ ' + fmt(sm.due) + " " + cur + '</div>';
 
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
-      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val">' + (sm.prevCredit < 0 ? "+" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
+      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
       : "";
     var discRow = sm.discount && sm.discount > 0
       ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
       : "";
+    var paidRow = sm.paid > 0
+      ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
+      : "";
 
     return '<div class="inv-card">' +
-      // هيدر
+      // هيدر بلوجو
       '<div class="inv-card-head">' +
-        '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
-        '<div class="inv-card-meta">' + esc(inv.month || "") + ' — ' + esc(inv.code) + '</div>' +
+        '<div class="inv-head-logo">' +
+          '<img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" class="inv-logo-img">' +
+          '<div class="inv-logo-sub">أكاديمية اللغة العربية</div>' +
+        '</div>' +
+        '<div class="inv-head-info">' +
+          '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
+          '<div class="inv-card-meta">' + esc(inv.month || "") + ' · ' + esc(inv.code) + '</div>' +
+        '</div>' +
+      '</div>' +
+      // شريط الاستهلاك
+      '<div class="inv-meta-strip">' +
+        '<span class="inv-meta-lbl">تفاصيل المجالس</span>' +
       '</div>' +
       // جدول الطلاب
       '<div class="inv-card-body">' +
         '<table class="inv-tbl">' +
           '<thead><tr><th>الطالب</th><th>الباقة</th><th>المنتهية</th><th>المبلغ</th></tr></thead>' +
-          '<tbody>' + (studRows || '<tr><td colspan="4" style="text-align:center;color:var(--fg-m)">لا توجد مجالس</td></tr>') + '</tbody>' +
+          '<tbody>' + (studRows || '<tr><td colspan="4" class="inv-empty">لا توجد مجالس</td></tr>') + '</tbody>' +
         '</table>' +
         // ملخص
         '<div class="inv-summary-box">' +
           '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.total) + " " + cur + '</span></div>' +
           prevRow +
           discRow +
-          (sm.paid > 0 ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>' : '') +
+          paidRow +
           '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>' +
         '</div>' +
         statusBadge +
       '</div>' +
       // فوتر
       '<div class="inv-card-foot">' +
-        (waUrl ? '<a class="wa-inv-btn" href="' + waUrl + '" target="_blank" rel="noopener">📲 إرسال واتساب</a>' : '') +
-        '<button type="button" class="ghost small inv-print-btn" onclick="window.print()">🖨 طباعة</button>' +
+        '<span class="inv-foot-note">جزاكم الله خيراً على ثقتكم</span>' +
+        '<div class="inv-foot-actions">' +
+          (waUrl ? '<a class="wa-inv-btn" href="' + waUrl + '" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.828L0 24l6.336-1.498A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.015-1.378l-.36-.213-3.732.882.913-3.636-.234-.373A9.818 9.818 0 1112 21.818z"/></svg> إرسال واتساب</a>' : '') +
+          '<button type="button" class="inv-print-btn" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg> طباعة</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
   }
