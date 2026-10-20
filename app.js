@@ -1025,7 +1025,11 @@
       '<!DOCTYPE html><html lang="ar" dir="rtl"><head>' +
       '<meta charset="utf-8">' +
       '<style>' + css + '</style>' +
-      '<style>body{margin:0;padding:32px 24px;background:#fff;} .inv-card{max-width:100%!important;box-shadow:none!important;margin:0!important;}</style>' +
+      '<style>' +
+      'body{margin:0;padding:24px;background:#fff;}' +
+      '.inv-card{max-width:100%!important;box-shadow:none!important;margin:0!important;}' +
+      '@page{margin:10mm; size: A4;}' +
+      '</style>' +
       '</head><body>' + clone.outerHTML + '</body></html>'
     );
     doc.close();
