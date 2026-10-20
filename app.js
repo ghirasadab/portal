@@ -722,10 +722,11 @@
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals";
-      $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals";
+      var own = t === "arch" || t === "evals" || t === "invoices";
+      $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices";
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
+      if (t === "invoices") loadInvoices();
       document.querySelectorAll("[data-sec]").forEach(function (x) { x.hidden = x.getAttribute("data-sec") !== t; });
       if (t === "arch") $("aQ").focus();
     });
@@ -862,6 +863,127 @@
   }
   $("aGo").addEventListener("click", archSearch);
   $("aQ").addEventListener("keydown", function (e) { if (e.key === "Enter") archSearch(); });
+
+  /* ======================= الفواتير ======================= */
+  var INV = null; // بيانات قائمة الأسر (invoiceList)
+
+  function loadInvoices() {
+    if (INV) return renderInvoiceList(); // مخزّنة من قبل
+    $("invFamilyList").innerHTML = '<div class="loading">جارٍ تحميل قائمة الأسر…</div>';
+    api("invoiceList", {}).then(function (r) {
+      INV = r;
+      $("invMonth").textContent = r.month || "";
+      renderInvoiceList();
+    }).catch(function (e) {
+      $("invFamilyList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
+    });
+  }
+
+  function renderInvoiceList() {
+    if (!INV || !INV.families) return;
+    $("invMonth").textContent = INV.month || "";
+    var html = INV.families.map(function (f) {
+      var statusCls = f.status === "تم السداد بالكامل" ? " paid" : (f.remaining > 0 ? " due" : "");
+      var badge = f.status ? '<span class="badge' + (f.status === "تم السداد بالكامل" ? " ok" : " warn") + '">' + esc(f.status) + "</span>" : "";
+      return '<label class="inv-family-row' + statusCls + '">' +
+        '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '"> ' +
+        '<span class="inv-fname">' + esc(f.name) + '</span>' +
+        badge +
+        (f.remaining > 0 ? '<span class="inv-rem">' + fmt(f.remaining) + ' ' + esc(f.currency || "ج") + '</span>' : '') +
+        '</label>';
+    }).join("");
+    $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر.</div>';
+  }
+
+  function fmt(n) {
+    if (n == null || n === "" || isNaN(Number(n))) return "—";
+    return Number(n).toLocaleString("ar-EG", { maximumFractionDigits: 2 });
+  }
+
+  // تحديد / إلغاء الكل
+  $("invSelAll").addEventListener("click", function () {
+    var chks = document.querySelectorAll(".inv-chk");
+    var anyUnchecked = Array.prototype.some.call(chks, function (c) { return !c.checked; });
+    chks.forEach(function (c) { c.checked = anyUnchecked; });
+  });
+
+  // عرض الفواتير المحددة
+  $("invGenerate").addEventListener("click", function () {
+    var codes = [];
+    document.querySelectorAll(".inv-chk:checked").forEach(function (c) { codes.push(c.getAttribute("data-code")); });
+    if (!codes.length) return showMsg("⚠ حدّد أسرة واحدة على الأقل.", false);
+    $("invOutput").innerHTML = '<div class="loading">جارٍ تحميل بيانات الفواتير…</div>';
+    $("invOutput").scrollIntoView({ behavior: "smooth", block: "start" });
+    api("invoiceData", { families: codes }).then(function (r) {
+      renderInvoices(r.invoices || []);
+    }).catch(function (e) {
+      $("invOutput").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
+    });
+  });
+
+  function renderInvoices(invoices) {
+    if (!invoices.length) { $("invOutput").innerHTML = '<div class="note">لا توجد بيانات.</div>'; return; }
+    $("invOutput").innerHTML = invoices.map(function (inv) { return buildInvoiceCard(inv); }).join("");
+  }
+
+  function buildInvoiceCard(inv) {
+    var cur = esc(inv.currency || "ج");
+    var waUrl = inv.waPhone ? "https://wa.me/" + inv.waPhone.replace(/\D/g, "") +
+      "?text=" + encodeURIComponent("فاتورة غراس الأدب — " + (inv.month || "")) : "";
+
+    // صفوف الطلاب
+    var studRows = (inv.students || []).map(function (s) {
+      return "<tr>" +
+        "<td class='iname'>" + esc(s.name) + "</td>" +
+        "<td class='inum'>" + (s.sessions || "—") + "</td>" +
+        "<td class='inum'>" + (s.done || "—") + "</td>" +
+        "<td class='iamt'>" + fmt(s.amount) + " " + cur + "</td>" +
+        "</tr>";
+    }).join("");
+
+    // ملخص مالي
+    var sm = inv.summary || {};
+    var isPaid = sm.due === 0 || sm.due <= 0;
+    var statusBadge = isPaid
+      ? '<span class="inv-sbadge paid">✓ تم السداد بالكامل</span>'
+      : '<span class="inv-sbadge partial">● متبقٍ ' + fmt(sm.due) + " " + cur + '</span>';
+
+    var prevRow = sm.prevCredit && sm.prevCredit !== 0
+      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val">' + (sm.prevCredit < 0 ? "+" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
+      : "";
+    var discRow = sm.discount && sm.discount > 0
+      ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
+      : "";
+
+    return '<div class="inv-card">' +
+      // هيدر
+      '<div class="inv-card-head">' +
+        '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
+        '<div class="inv-card-meta">' + esc(inv.month || "") + ' — ' + esc(inv.code) + '</div>' +
+      '</div>' +
+      // جدول الطلاب
+      '<div class="inv-card-body">' +
+        '<table class="inv-tbl">' +
+          '<thead><tr><th>الطالب</th><th>الباقة</th><th>المنتهية</th><th>المبلغ</th></tr></thead>' +
+          '<tbody>' + (studRows || '<tr><td colspan="4" style="text-align:center;color:var(--fg-m)">لا توجد مجالس</td></tr>') + '</tbody>' +
+        '</table>' +
+        // ملخص
+        '<div class="inv-summary-box">' +
+          '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.total) + " " + cur + '</span></div>' +
+          prevRow +
+          discRow +
+          (sm.paid > 0 ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>' : '') +
+          '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>' +
+        '</div>' +
+        statusBadge +
+      '</div>' +
+      // فوتر
+      '<div class="inv-card-foot">' +
+        (waUrl ? '<a class="wa-inv-btn" href="' + waUrl + '" target="_blank" rel="noopener">📲 إرسال واتساب</a>' : '') +
+        '<button type="button" class="ghost small inv-print-btn" onclick="window.print()">🖨 طباعة</button>' +
+      '</div>' +
+    '</div>';
+  }
 
   /* ---------------- البدء ---------------- */
   takeTokenFromUrl();

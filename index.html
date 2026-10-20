@@ -65,6 +65,7 @@
       <button type="button" class="tab" data-atab="money">المالية</button>
       <button type="button" class="tab" data-atab="evals">التقييمات</button>
       <button type="button" class="tab" data-atab="arch">الأرشيف</button>
+      <button type="button" class="tab" data-atab="invoices">الفواتير</button>
       <span class="spacer"></span>
       <select id="aMonth" class="date-sel" aria-label="الشهر"></select>
       <button type="button" class="ghost small" id="aFresh">⟳ تحديث الأرقام</button>
@@ -141,6 +142,20 @@
         </div>
         <div id="aResults"></div>
       </section>
+    </div>
+
+    <div id="aInvoices" hidden>
+      <section class="card">
+        <div class="min-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h2 style="margin:0">فواتير الأسر — <span id="invMonth"></span></h2>
+          <div class="min-row" style="gap:8px">
+            <button type="button" class="ghost small" id="invSelAll">تحديد الكل</button>
+            <button type="button" class="primary small" id="invGenerate">عرض الفواتير المحددة</button>
+          </div>
+        </div>
+        <div id="invFamilyList"><div class="loading">جارٍ التحميل…</div></div>
+      </section>
+      <div id="invOutput"></div>
     </div>
   </div>
 
