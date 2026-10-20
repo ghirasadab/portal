@@ -249,9 +249,9 @@ html.ga-dark .tab.on { color: #0b2210; }
   color: #fff; padding: 18px 20px;
   display: flex; align-items: center; gap: 0; flex-wrap: nowrap;
 }
-.inv-head-logo { display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 24px 0 0; }
-html[dir="rtl"] .inv-head-logo { padding: 0 0 0 24px; }
-.inv-logo-img { height: 48px; width: auto; filter: brightness(0) invert(1); display: block; }
+.inv-head-logo { display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 20px 0 0; }
+html[dir="rtl"] .inv-head-logo { padding: 0 0 0 20px; }
+.inv-logo-img { height: 64px; width: auto; filter: brightness(0) invert(1); display: block; }
 .inv-head-divider { width: 1px; background: rgba(255,255,255,.25); align-self: stretch; flex-shrink: 0; }
 .inv-head-info { flex: 1; min-width: 0; padding: 0 0 0 24px; text-align: center; }
 html[dir="rtl"] .inv-head-info { padding: 0 24px 0 0; }
@@ -330,6 +330,7 @@ html.ga-dark .inv-card-foot { background: var(--mint); }
     break-inside: avoid; page-break-inside: avoid; max-width: 100%;
   }
   .inv-card-head { background: #1B5E20 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .inv-meta-strip { background: #E65100 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .inv-tbl th { background: #f0f0e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .inv-summary-box { background: #f5f0e1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { background: #fff; font-size: 13px; }
