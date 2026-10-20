@@ -883,13 +883,16 @@
     if (!INV || !INV.families) return;
     $("invMonth").textContent = INV.month || "";
     var html = INV.families.filter(function (f) {
-      return f.remaining != 0; // أسر لها أو عليها مبلغ
+      return true; // الخادم يرسل الأسر ذات الباقات النشطة المدفوعة فقط
     }).map(function (f) {
       var cr = f.remaining < 0;
+      var amt = f.remaining
+        ? '<span class="inv-rem"' + (cr ? ' style="color:var(--ok)"' : '') + '>' + (cr ? "لها " : "عليها ") + fmt(Math.abs(f.remaining)) + ' ' + esc(f.currency || "ج") + '</span>'
+        : '<span class="inv-rem" style="color:var(--muted)">مسدّد</span>';
       return '<label class="inv-family-row due">' +
         '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '"> ' +
         '<span class="inv-fname">' + esc(f.name) + '</span>' +
-        '<span class="inv-rem"' + (cr ? ' style="color:var(--ok)"' : '') + '>' + (cr ? "لها " : "عليها ") + fmt(Math.abs(f.remaining)) + ' ' + esc(f.currency || "ج") + '</span>' +
+        amt +
         '</label>';
     }).join("");
     $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر.</div>';
