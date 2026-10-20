@@ -295,6 +295,7 @@ html.ga-dark .inv-summary-box { background: var(--mint); }
   border-top: 1.5px solid var(--line); padding-top: 7px; margin-top: 2px;
   color: var(--orange);
 }
+.isum-row.total.credit { color: var(--ok); }
 .inum-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .inum-val.credit { color: var(--ok); }
 

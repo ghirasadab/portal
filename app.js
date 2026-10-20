@@ -882,14 +882,15 @@
   function renderInvoiceList() {
     if (!INV || !INV.families) return;
     $("invMonth").textContent = INV.month || "";
-    var html = INV.families.map(function (f) {
-      var statusCls = f.status === "تم السداد بالكامل" ? " paid" : (f.remaining > 0 ? " due" : "");
-      var badge = f.status ? '<span class="badge' + (f.status === "تم السداد بالكامل" ? " ok" : " warn") + '">' + esc(f.status) + "</span>" : "";
-      return '<label class="inv-family-row' + statusCls + '">' +
+    var html = INV.families.filter(function (f) {
+      return f.remaining > 0; // أسر عليها متبقي فقط — من عندهم رصيد لصالحهم لا يظهرون
+    }).map(function (f) {
+      var badge = f.status && f.status !== "تم السداد بالكامل" ? '<span class="badge warn">' + esc(f.status) + "</span>" : "";
+      return '<label class="inv-family-row due">' +
         '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '"> ' +
         '<span class="inv-fname">' + esc(f.name) + '</span>' +
         badge +
-        (f.remaining > 0 ? '<span class="inv-rem">' + fmt(f.remaining) + ' ' + esc(f.currency || "ج") + '</span>' : '') +
+        '<span class="inv-rem">' + fmt(f.remaining) + ' ' + esc(f.currency || "ج") + '</span>' +
         '</label>';
     }).join("");
     $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر.</div>';
@@ -981,7 +982,10 @@
           prevRow +
           discRow +
           paidRow +
-          '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>' +
+          (sm.due <= 0
+            ? '<div class="isum-row total credit"><span>رصيد لصالحكم</span><span class="inum-val">' + fmt(Math.abs(sm.due)) + " " + cur + '</span></div>'
+            : '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
+          ) +
         '</div>' +
       '</div>' +
       // فوتر
