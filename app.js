@@ -943,11 +943,6 @@
 
     // ملخص مالي
     var sm = inv.summary || {};
-    var isPaid = sm.due !== undefined && sm.due <= 0;
-    var statusChip = isPaid
-      ? '<span class="inv-status-chip paid">✓ مسدَّد</span>'
-      : '<span class="inv-status-chip partial">● متبقٍ</span>';
-
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
       ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
       : "";
@@ -967,7 +962,7 @@
         '</div>' +
         '<div class="inv-head-info">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
-          '<div class="inv-head-bottom"><span class="inv-card-meta">' + esc(inv.month || "") + '</span>' + statusChip + '</div>' +
+          '<div class="inv-card-meta">' + esc(inv.month || "") + '</div>' +
         '</div>' +
       '</div>' +
       // شريط الاستهلاك
