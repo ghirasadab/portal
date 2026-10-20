@@ -247,7 +247,7 @@ html.ga-dark .tab.on { color: #0b2210; }
 .inv-card-head {
   background: linear-gradient(135deg, #1E6B24, #0E3B13);
   color: #fff; padding: 16px 20px;
-  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 36px; flex-wrap: wrap;
 }
 .inv-head-logo { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; border-left: 1px solid rgba(255,255,255,.25); padding-left: 24px; margin-left: 0; }
 html[dir="rtl"] .inv-head-logo { border-left: none; border-right: 1px solid rgba(255,255,255,.25); padding-left: 0; padding-right: 24px; margin-right: 0; }

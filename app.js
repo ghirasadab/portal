@@ -958,7 +958,6 @@
       '<div class="inv-card-head">' +
         '<div class="inv-head-logo">' +
           '<img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" class="inv-logo-img">' +
-          '<div class="inv-logo-sub">أكاديمية اللغة العربية</div>' +
         '</div>' +
         '<div class="inv-head-info">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
