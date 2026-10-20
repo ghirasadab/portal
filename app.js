@@ -883,14 +883,13 @@
     if (!INV || !INV.families) return;
     $("invMonth").textContent = INV.month || "";
     var html = INV.families.filter(function (f) {
-      return f.remaining > 0; // أسر عليها متبقي فقط — من عندهم رصيد لصالحهم لا يظهرون
+      return f.remaining != 0; // أسر لها أو عليها مبلغ
     }).map(function (f) {
-      var badge = f.status && f.status !== "تم السداد بالكامل" ? '<span class="badge warn">' + esc(f.status) + "</span>" : "";
+      var cr = f.remaining < 0;
       return '<label class="inv-family-row due">' +
         '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '"> ' +
         '<span class="inv-fname">' + esc(f.name) + '</span>' +
-        badge +
-        '<span class="inv-rem">' + fmt(f.remaining) + ' ' + esc(f.currency || "ج") + '</span>' +
+        '<span class="inv-rem"' + (cr ? ' style="color:var(--ok)"' : '') + '>' + (cr ? "لها " : "عليها ") + fmt(Math.abs(f.remaining)) + ' ' + esc(f.currency || "ج") + '</span>' +
         '</label>';
     }).join("");
     $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر.</div>';
