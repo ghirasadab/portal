@@ -1003,31 +1003,36 @@
   window.printInvCard = function printInvCard(btn) {
     var card = btn.closest(".inv-card");
     if (!card) return;
-    // جمع كل الـ CSS المحمّل في الصفحة
+    // جمع كل الـ CSS
     var css = "";
     Array.from(document.styleSheets).forEach(function(sheet) {
-      try {
-        Array.from(sheet.cssRules || []).forEach(function(rule) { css += rule.cssText + "\n"; });
-      } catch(e) {}
+      try { Array.from(sheet.cssRules || []).forEach(function(r){ css += r.cssText + "\n"; }); } catch(e) {}
     });
-    // نسخة من الكارد بدون فوتر الزراير
+    // نسخة من الكارد بدون فوتر
     var clone = card.cloneNode(true);
     var foot = clone.querySelector(".inv-card-foot");
     if (foot) foot.remove();
-    var win = window.open("", "_blank", "width=720,height=900");
-    if (!win) { alert("يرجى السماح بالنوافذ المنبثقة لهذا الموقع"); return; }
-    win.document.write(
+    // iframe مخفي في نفس الصفحة (لا popup blocker)
+    var old = document.getElementById("__inv_print_frame");
+    if (old) old.remove();
+    var iframe = document.createElement("iframe");
+    iframe.id = "__inv_print_frame";
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:720px;height:900px;border:0;visibility:hidden;";
+    document.body.appendChild(iframe);
+    var doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(
       '<!DOCTYPE html><html lang="ar" dir="rtl"><head>' +
-      '<meta charset="utf-8"><meta name="viewport" content="width=device-width">' +
-      '<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&family=Kufam:wght@700&display=swap" rel="stylesheet">' +
+      '<meta charset="utf-8">' +
       '<style>' + css + '</style>' +
       '<style>body{margin:0;padding:32px 24px;background:#fff;} .inv-card{max-width:100%!important;box-shadow:none!important;margin:0!important;}</style>' +
-      '</head><body>' +
-      clone.outerHTML +
-      '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>' +
-      '</body></html>'
+      '</head><body>' + clone.outerHTML + '</body></html>'
     );
-    win.document.close();
+    doc.close();
+    setTimeout(function() {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 300);
   }
 
   /* ---------------- البدء ---------------- */
