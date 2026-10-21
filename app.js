@@ -1048,8 +1048,8 @@
               ? '<div class="isum-row total credit"><span>رصيد لصالحكم</span><span class="inum-val">' + fmt(Math.abs(sm.due)) + " " + cur + '</span></div>'
               : '<div class="isum-row total credit"><span>المطلوب دفعه</span><span class="inum-val">تم السداد</span></div>'
           ) +
-          (sm.unusedCount > 0
-            ? '<div class="isum-row muted"><span>مجالس مدفوعة متبقية: ' + fmt(sm.unusedCount) + ' مجلس</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
+          (sm.unusedCount > 0 && sm.due <= 0
+            ? '<div class="isum-row muted"><span>مجالس متبقية من باقتكم: ' + fmt(sm.unusedCount) + ' مجلس</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
             : "") +
         '</div>' +
         // وسائل الدفع التفاعلية مع QR Codes
