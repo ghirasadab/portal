@@ -1049,7 +1049,7 @@
               : '<div class="isum-row total credit"><span>المطلوب دفعه</span><span class="inum-val">تم السداد</span></div>'
           ) +
           (sm.unusedCount > 0 && sm.due <= 0
-            ? '<div class="isum-row muted"><span>متبقٍ من باقتكم: ' + sessionsWord(sm.unusedCount) + '</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
+            ? '<div class="isum-row muted"><span>متبقٍ من باقتكم السابقة: ' + sessionsWord(sm.unusedCount) + '</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
             : "") +
         '</div>' +
         // وسائل الدفع التفاعلية مع QR Codes
