@@ -20,7 +20,11 @@
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-32x32.jpeg" sizes="32x32">
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-192x192.jpeg" sizes="192x192">
 <link rel="apple-touch-icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-180x180.jpeg">
-<link rel="stylesheet" href="style.css?v=202610210200">
+<link rel="stylesheet" href="style.css?v=202610220100">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
 <header class="top">
@@ -147,11 +151,22 @@
     <div id="aInvoices" hidden>
       <section class="card">
         <div class="min-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <h2 style="margin:0">فواتير الأسر — <span id="invMonth"></span></h2>
-          <div class="min-row" style="gap:8px">
-            <button type="button" class="ghost small" id="invSelAll">تحديد الكل</button>
-            <button type="button" class="primary small" id="invGenerate">عرض الفواتير المحددة</button>
+          <div>
+            <h2 style="margin:0">فواتير الأسر — <span id="invMonth"></span></h2>
+            <div class="min-row" id="invMonthToggle" style="gap:6px;margin-top:6px">
+              <button type="button" class="chip active" id="invTabCur">📅 الشهر الحالي</button>
+              <button type="button" class="chip" id="invTabNext">⏭️ الشهر القادم</button>
+            </div>
           </div>
+          <div class="min-row" style="gap:6px;flex-wrap:wrap">
+            <button type="button" class="ghost small" id="invSelAll">تحديد الكل</button>
+            <button type="button" class="ghost small" id="invSelDue">المستحقين فقط</button>
+            <button type="button" class="primary small" id="invGenerate">عرض الفواتير المحددة</button>
+            <button type="button" class="small" id="invZipBulk" style="background:var(--orange);color:#fff">📦 تحميل صور ZIP</button>
+          </div>
+        </div>
+        <div style="margin:10px 0 6px">
+          <input id="invSearch" type="search" placeholder="بحث باسم الأسرة…" style="width:100%;max-width:320px;padding:6px 12px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px">
         </div>
         <div id="invFamilyList"><div class="loading">جارٍ التحميل…</div></div>
       </section>
@@ -277,6 +292,6 @@
 
 <script src="config.js?v=202610210000"></script>
 <script src="demo.js?v=202610210000"></script>
-<script src="app.js?v=202610210225"></script>
+<script src="app.js?v=202610220100"></script>
 </body>
 </html>

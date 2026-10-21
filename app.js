@@ -866,36 +866,68 @@
 
   /* ======================= الفواتير ======================= */
   var INV = null; // بيانات قائمة الأسر (invoiceList)
+  var invIsNextMode = false;
+  var currentInvoicesLoaded = [];
+  var INSTAPAY_URL = "https://ipn.eg/S/omarsharafalex/instapay/88hGU7";
+  var VODAFONE_NUM = "01080306228";
 
-  function loadInvoices() {
-    if (INV) return renderInvoiceList(); // مخزّنة من قبل
+  function loadInvoices(force) {
+    if (INV && !force) return renderInvoiceList();
     $("invFamilyList").innerHTML = '<div class="loading">جارٍ تحميل قائمة الأسر…</div>';
-    api("invoiceList", {}).then(function (r) {
+    api("invoiceList", { isNext: invIsNextMode }).then(function (r) {
       INV = r;
-      $("invMonth").textContent = r.month || "";
+      var curName = r.currentMonth || r.month || "";
+      var nextName = r.nextMonth || "";
+      var tabCur = $("invTabCur"), tabNext = $("invTabNext");
+      if (tabCur) {
+        tabCur.textContent = "📅 " + (curName || "الحالي");
+        if (!invIsNextMode) tabCur.classList.add("active"); else tabCur.classList.remove("active");
+      }
+      if (tabNext) {
+        tabNext.textContent = "⏭️ " + (nextName || "القادم");
+        if (invIsNextMode) tabNext.classList.add("active"); else tabNext.classList.remove("active");
+      }
+      $("invMonth").textContent = invIsNextMode ? ("فواتير استباقية لشهر: " + (nextName || r.month)) : (curName || r.month || "");
       renderInvoiceList();
     }).catch(function (e) {
       $("invFamilyList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
     });
   }
 
+  // التبديل بين الشهر الحالي والقادم
+  var tabCurBtn = $("invTabCur"), tabNextBtn = $("invTabNext");
+  if (tabCurBtn) tabCurBtn.addEventListener("click", function () {
+    if (!invIsNextMode) return;
+    invIsNextMode = false;
+    loadInvoices(true);
+  });
+  if (tabNextBtn) tabNextBtn.addEventListener("click", function () {
+    if (invIsNextMode) return;
+    invIsNextMode = true;
+    loadInvoices(true);
+  });
+
+  // البحث في الأسر
+  var invSearchInput = $("invSearch");
+  if (invSearchInput) invSearchInput.addEventListener("input", renderInvoiceList);
+
   function renderInvoiceList() {
     if (!INV || !INV.families) return;
-    $("invMonth").textContent = INV.month || "";
+    var q = invSearchInput ? invSearchInput.value.trim() : "";
     var html = INV.families.filter(function (f) {
-      return true; // الخادم يرسل الأسر ذات الباقات النشطة المدفوعة فقط
+      return !q || String(f.name).indexOf(q) !== -1;
     }).map(function (f) {
       var cr = f.remaining < 0;
       var amt = f.remaining
         ? '<span class="inv-rem"' + (cr ? ' style="color:var(--ok)"' : '') + '>' + (cr ? "لها " : "عليها ") + fmt(Math.abs(f.remaining)) + ' ' + esc(f.currency || "ج") + '</span>'
         : '<span class="inv-rem" style="color:var(--muted)">مسدّد</span>';
       return '<label class="inv-family-row due">' +
-        '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '"> ' +
+        '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '" data-rem="' + Number(f.remaining || 0) + '"> ' +
         '<span class="inv-fname">' + esc(f.name) + '</span>' +
         amt +
         '</label>';
     }).join("");
-    $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر.</div>';
+    $("invFamilyList").innerHTML = html || '<div class="note">لا توجد أسر مطابقة.</div>';
   }
 
   function fmt(n) {
@@ -910,6 +942,16 @@
     chks.forEach(function (c) { c.checked = anyUnchecked; });
   });
 
+  // تحديد المستحقين فقط
+  var invSelDueBtn = $("invSelDue");
+  if (invSelDueBtn) invSelDueBtn.addEventListener("click", function () {
+    var chks = document.querySelectorAll(".inv-chk");
+    chks.forEach(function (c) {
+      var rem = Number(c.getAttribute("data-rem") || 0);
+      c.checked = rem > 0;
+    });
+  });
+
   // عرض الفواتير المحددة
   $("invGenerate").addEventListener("click", function () {
     var codes = [];
@@ -917,8 +959,9 @@
     if (!codes.length) return showMsg("⚠ حدّد أسرة واحدة على الأقل.", false);
     $("invOutput").innerHTML = '<div class="loading">جارٍ تحميل بيانات الفواتير…</div>';
     $("invOutput").scrollIntoView({ behavior: "smooth", block: "start" });
-    api("invoiceData", { families: codes }).then(function (r) {
-      renderInvoices(r.invoices || []);
+    api("invoiceData", { families: codes, isNext: invIsNextMode }).then(function (r) {
+      currentInvoicesLoaded = r.invoices || [];
+      renderInvoices(currentInvoicesLoaded);
     }).catch(function (e) {
       $("invOutput").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
     });
@@ -926,26 +969,41 @@
 
   function renderInvoices(invoices) {
     if (!invoices.length) { $("invOutput").innerHTML = '<div class="note">لا توجد بيانات.</div>'; return; }
-    $("invOutput").innerHTML = invoices.map(function (inv) { return buildInvoiceCard(inv); }).join("");
+    $("invOutput").innerHTML = invoices.map(function (inv, idx) { return buildInvoiceCard(inv, idx); }).join("");
+    // توليد الـ QR Codes بعد بناء العناصر
+    invoices.forEach(function (inv, idx) {
+      generateInvQRs(idx);
+    });
   }
 
-  function buildInvoiceCard(inv) {
+  function generateInvQRs(idx) {
+    if (typeof QRCode === "undefined") return;
+    var ipnEl = $("qr_ipn_" + idx);
+    var vdfEl = $("qr_vdf_" + idx);
+    if (ipnEl && !ipnEl.hasChildNodes()) {
+      new QRCode(ipnEl, { text: INSTAPAY_URL, width: 70, height: 70, correctLevel: QRCode.CorrectLevel.M });
+    }
+    if (vdfEl && !vdfEl.hasChildNodes()) {
+      new QRCode(vdfEl, { text: "tel:" + VODAFONE_NUM, width: 70, height: 70, correctLevel: QRCode.CorrectLevel.M });
+    }
+  }
+
+  function buildInvoiceCard(inv, idx) {
+    idx = idx || 0;
     var cur = esc(inv.currency || "جنيه");
-    var waUrl = inv.waPhone ? "https://wa.me/" + inv.waPhone.replace(/\D/g, "") +
-      "?text=" + encodeURIComponent("فاتورة غراس الأدب — " + (inv.month || "")) : "";
+    var sm = inv.summary || {};
 
     // صفوف الطلاب
     var studRows = (inv.students || []).map(function (s) {
       return "<tr>" +
         "<td class='iname'>" + esc(s.name) + "</td>" +
         "<td class='inum'>" + (s.sessions || "—") + "</td>" +
-        "<td class='inum'>" + (s.done || "—") + "</td>" +
+        "<td class='inum'>" + (s.done != null ? s.done : "—") + "</td>" +
         "<td class='iamt'>" + fmt(s.amount) + " " + cur + "</td>" +
         "</tr>";
     }).join("");
 
     // ملخص مالي
-    var sm = inv.summary || {};
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
       ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
       : "";
@@ -956,14 +1014,14 @@
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
 
-    return '<div class="inv-card">' +
+    return '<div class="inv-card" id="invCard_' + idx + '">' +
       // هيدر بلوجو
       '<div class="inv-card-head">' +
         '<div class="inv-head-logo">' +
-          '<img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" class="inv-logo-img">' +
+          '<img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" class="inv-logo-img" style="transform:translateY(-6px);">' +
         '</div>' +
         '<div class="inv-head-divider"></div>' +
-        '<div class="inv-head-info">' +
+        '<div class="inv-head-info" style="padding-top:14px;">' +
           '<div class="inv-card-title">' + esc(inv.name) + '</div>' +
           '<div class="inv-card-meta">' + esc(inv.month || "") + '</div>' +
         '</div>' +
@@ -994,17 +1052,143 @@
             ? '<div class="isum-row muted"><span>مجالس مدفوعة متبقية: ' + fmt(sm.unusedCount) + ' مجلس</span><span class="inum-val">' + fmt(sm.unusedValue) + " " + cur + '</span></div>'
             : "") +
         '</div>' +
+        // وسائل الدفع التفاعلية مع QR Codes
+        '<div class="inv-pay-box">' +
+          '<div class="inv-pay-title">وسائل الدفع المتاحة <span>(باسم: عمر شرف)</span></div>' +
+          '<div class="inv-qr-row">' +
+            '<div class="inv-qr-item ipn">' +
+              '<div class="inv-qr-code" id="qr_ipn_' + idx + '"></div>' +
+              '<div class="inv-qr-label">⚡ إنستاباي</div>' +
+              '<div class="inv-qr-sub">امسح للدفع</div>' +
+            '</div>' +
+            '<div class="inv-qr-item vdf">' +
+              '<div class="inv-qr-code" id="qr_vdf_' + idx + '"></div>' +
+              '<div class="inv-qr-label">📱 فودافون كاش</div>' +
+              '<div class="inv-qr-sub">' + VODAFONE_NUM + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
       // فوتر
       '<div class="inv-card-foot">' +
         '<span class="inv-foot-note">جزاكم الله خيراً على ثقتكم</span>' +
         '<div class="inv-foot-actions">' +
-          (waUrl ? '<a class="wa-inv-btn" href="' + waUrl + '" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.828L0 24l6.336-1.498A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.015-1.378l-.36-.213-3.732.882.913-3.636-.234-.373A9.818 9.818 0 1112 21.818z"/></svg> إرسال واتساب</a>' : '') +
+          '<button type="button" class="wa-inv-btn" onclick="copyAndSendWa(' + idx + ', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.828L0 24l6.336-1.498A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.015-1.378l-.36-.213-3.732.882.913-3.636-.234-.373A9.818 9.818 0 1112 21.818z"/></svg> نسخ وإرسال واتساب (Ctrl+V)</button>' +
+          '<button type="button" class="inv-btn-img" onclick="downloadCardImg(' + idx + ', this)">🖼️ حفظ صورة</button>' +
           '<button type="button" class="inv-print-btn" onclick="printInvCard(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg> طباعة</button>' +
         '</div>' +
       '</div>' +
     '</div>';
   }
+
+  // نسخ الصورة تلقائياً للحافظة + فتح محادثة الواتساب
+  window.copyAndSendWa = async function (idx, btn) {
+    var inv = currentInvoicesLoaded[idx];
+    if (!inv) return;
+    var card = $("invCard_" + idx);
+    var oldText = btn.innerHTML;
+    btn.innerHTML = "⏳ جاري نسخ الصورة…";
+
+    try {
+      if (typeof html2canvas !== "undefined") {
+        var canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+        canvas.toBlob(async function (blob) {
+          if (navigator.clipboard && window.ClipboardItem) {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+            } catch (err) { console.log("Clipboard write failed", err); }
+          }
+
+          var sm = inv.summary || {};
+          var waMsg = "السلام عليكم ورحمة الله،\nمرفق فاتورة غراس الأدب لشهر " + (inv.month || "") + ".\nالمطلوب دفعه: " + fmt(Math.max(sm.due, 0)) + " " + (inv.currency || "جنيه") +
+            "\n\nطرق الدفع (باسم عمر شرف):\n- إنستاباي: " + INSTAPAY_URL + "\n- فودافون كاش: " + VODAFONE_NUM;
+          var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
+          window.open(waUrl, "_blank");
+
+          btn.innerHTML = "✅ تم نسخ الصورة! الصقها (Ctrl+V) في الشات";
+          setTimeout(function () { btn.innerHTML = oldText; }, 3500);
+        });
+      } else {
+        var sm = inv.summary || {};
+        var waMsg = "السلام عليكم ورحمة الله،\nمرفق فاتورة غراس الأدب لشهر " + (inv.month || "") + ".\nالمطلوب دفعه: " + fmt(Math.max(sm.due, 0)) + " " + (inv.currency || "جنيه");
+        var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
+        window.open(waUrl, "_blank");
+        btn.innerHTML = oldText;
+      }
+    } catch (e) {
+      alert("تعذر نسخ الصورة: " + e.message);
+      btn.innerHTML = oldText;
+    }
+  };
+
+  // حفظ الفاتورة الفردية كصورة PNG
+  window.downloadCardImg = async function (idx, btn) {
+    var inv = currentInvoicesLoaded[idx];
+    if (!inv || typeof html2canvas === "undefined") return;
+    var card = $("invCard_" + idx);
+    var oldText = btn.innerHTML;
+    btn.innerHTML = "⏳ جاري التجهيز…";
+    try {
+      var canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      canvas.toBlob(function (blob) {
+        if (typeof saveAs !== "undefined") {
+          saveAs(blob, "فاتورة - " + inv.name + " - " + (inv.month || "") + ".png");
+        }
+        btn.innerHTML = oldText;
+      });
+    } catch (e) {
+      btn.innerHTML = oldText;
+    }
+  };
+
+  // تحميل كل الفواتير المحددة في ملف مضغوط ZIP
+  var invZipBulkBtn = $("invZipBulk");
+  if (invZipBulkBtn) invZipBulkBtn.addEventListener("click", async function () {
+    var codes = [];
+    document.querySelectorAll(".inv-chk:checked").forEach(function (c) { codes.push(c.getAttribute("data-code")); });
+    if (!codes.length) return showMsg("⚠ حدّد أسرة واحدة على الأقل للتحميل.", false);
+
+    var btn = invZipBulkBtn;
+    var oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "⏳ جلب الفواتير…";
+
+    try {
+      var r = await api("invoiceData", { families: codes, isNext: invIsNextMode });
+      var invoices = r.invoices || [];
+      if (!invoices.length) throw new Error("لا توجد فواتير لتنزيلها");
+
+      var zip = new JSZip();
+      var temp = document.createElement("div");
+      temp.style.position = "fixed"; temp.style.left = "-9999px"; temp.style.top = "0";
+      document.body.appendChild(temp);
+
+      for (var i = 0; i < invoices.length; i++) {
+        var inv = invoices[i];
+        btn.innerHTML = "⏳ تجهيز صورة (" + (i + 1) + "/" + invoices.length + ")…";
+        temp.innerHTML = buildInvoiceCard(inv, "zip_" + i);
+        generateInvQRs("zip_" + i);
+
+        var cardEl = temp.querySelector(".inv-card");
+        var canvas = await html2canvas(cardEl, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+        var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, "image/png"); });
+        var safeName = (inv.name || inv.code).replace(/[/\\?%*:|"<>]/g, "_");
+        zip.file("فاتورة - " + safeName + " - " + (inv.month || "") + ".png", blob);
+      }
+
+      document.body.removeChild(temp);
+      btn.innerHTML = "⏳ ضغط ملفات ZIP…";
+      var zipContent = await zip.generateAsync({ type: "blob" });
+      saveAs(zipContent, "فواتير_غراس_الأدب_" + (r.month || "شهر") + ".zip");
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      showMsg("✅ تم تنزيل ملف ZIP بنجاح!", true);
+    } catch (e) {
+      alert("خطأ أثناء إنشاء ملف ZIP: " + e.message);
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+    }
+  });
 
   /* ---------------- طباعة الفاتورة ---------------- */
   window.printInvCard = function printInvCard(btn) {
