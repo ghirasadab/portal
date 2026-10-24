@@ -164,7 +164,7 @@
     function li(u) {
       var done = unitRecorded(u, dateKey);
       return '<li tabindex="0" data-key="' + esc(u.key) + '"' + (unit && unit.key === u.key ? ' class="sel"' : "") + '><div><div class="nm">' + esc(u.title) +
-        '</div><div class="mt">' + (unitTime(u, dateKey) ? '<b class="tm">' + esc(unitTime(u, dateKey)) + "</b> — " : "") + esc(u.cat) + (u.days && !dayEvents(dateKey) ? " — " + esc(u.days) : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
+        '</div><div class="mt">' + (unitTime(u, dateKey) ? '<b class="tm">' + esc(unitTime(u, dateKey)) + "</b> — " : "") + esc(u.cat) + (u.days && !dayEvents(dateKey) ? " — " + esc(u.days) : "") + (finishedOf(u).length === u.members.length ? " — ⚠ انتهت الباقة" : finishedOf(u).length ? " — ⚠ انتهت باقة " + finishedOf(u).length : "") + '</div></div><span class="dot' + (done ? " done" : "") + '" title="' + (done ? "مسجَّل" : "غير مسجَّل") + '"></span></li>';
     }
     $("evalBox").hidden = !D.hasEval;
     var ne = Number((D.evals || {})[dateKey]) || 0;
@@ -195,6 +195,7 @@
     $("rPerfLbl").textContent = u.type === "group" ? "أداء الطلاب في المجلس" : "أداء الطالب في المجلس";
     $("rIndWrap").hidden = u.type !== "group";
     renderLast();
+    renderFinished(u);
 
     // الحالة الحالية في الشيت لهذا اليوم
     var i = dateIdx(dateKey);
@@ -235,6 +236,57 @@
     $("form").hidden = true; $("evalForm").hidden = true; $("empty").hidden = false;
     renderUnits();
   }
+
+  // طلاب انتهت باقاتهم ولم تعد لهم مجالس (من «الأسر والطلاب»)
+  function finishedOf(u) { return u.members.filter(function (m) { return m.finished; }); }
+  function renderFinished(u) {
+    var box = $("finishedNote");
+    if (!box) {
+      $("existing").insertAdjacentHTML("beforebegin", '<div class="existing" id="finishedNote" hidden></div>');
+      box = $("finishedNote");
+    }
+    var f = finishedOf(u);
+    box.hidden = !f.length;
+    if (!f.length) return;
+    box.innerHTML = f.length === 1
+      ? "انتهت باقة <b>" + esc(f[0].name) + "</b> (" + esc(f[0].done) + " من " + esc(f[0].pkg) + ") ولم تعد له مجالس متبقية. راجع الإدارة قبل تسجيل مجلس جديد."
+      : "انتهت باقات: <b>" + f.map(function (m) { return esc(m.name); }).join("، ") + "</b> ولم تعد لهم مجالس متبقية. راجع الإدارة قبل تسجيل مجلس جديد.";
+  }
+
+  // آخر مجلس في باقة الشهر: المجالس المحتسبة قبل اليوم (حضر أو تعويض أو غياب دون تنبيه) + هذا المجلس = الباقة
+  function usedBefore(m, key) {
+    var i = dateIdx(key), n = 0;
+    m.cells.forEach(function (c, j) { if (j !== i && c && (c[1] === "done" || c[1] === "makeup" || c[1] === "absent")) n++; });
+    return n;
+  }
+  function lastOfPackage(u) {
+    return u.members.filter(function (m) {
+      if (!(m.pkg > 0) || usedBefore(m, dateKey) + 1 !== m.pkg) return false;
+      var row = document.querySelector('#members .mrow[data-col="' + m.col + '"] select');
+      return !(row && row.value === "pStudent");
+    });
+  }
+  function renderLastNote() {
+    var box = $("lastSessionNote");
+    if (!box) {
+      $("reportBox").insertAdjacentHTML("beforebegin", '<div class="existing" id="lastSessionNote" hidden></div>');
+      box = $("lastSessionNote");
+    }
+    var f = unit && !$("form").hidden && (status === "done" || status === "makeup") ? lastOfPackage(unit) : [];
+    box.hidden = !f.length;
+    if (!f.length) return;
+    box.innerHTML = "هذا آخر مجلس في باقة هذا الشهر لـ<b>" + f.map(function (m) { return esc(m.name); }).join("، ") + "</b> (" + f[0].pkg + " من " + f[0].pkg + "). " +
+      "نبّه ولي الأمر في التقرير إلى انتهاء الباقة. " +
+      '<button type="button" class="ghost small" id="lastNoteAdd">إضافة التنبيه إلى الملاحظات</button>';
+  }
+  document.addEventListener("click", function (e) {
+    if (!e.target || e.target.id !== "lastNoteAdd") return;
+    var t = "تنبيه: كان هذا آخر مجلس في باقة هذا الشهر، ونرجو تجديد الباقة.";
+    var n = $("rNotes");
+    if (n.value.indexOf(t) === -1) n.value = (n.value.trim() ? n.value.trim() + "\n" : "") + t;
+    n.dispatchEvent(new Event("input"));
+    e.target.disabled = true;
+  });
 
   function renderLast() {
     var r = D.lastReports && D.lastReports[unit.key];
@@ -295,6 +347,7 @@
     $("membersBox").hidden = !(group && st && st.minutes);
     $("members").classList.toggle("all-absent", status === "absent");
     $("reportBox").hidden = !held;
+    renderLastNote();
   }
 
   function resetSave() {
@@ -476,7 +529,7 @@
     if (unit.type !== "group" && stMeta(status).minutes && !$("minutes").value) $("minutes").value = lastMinutes(unit.members[0], dateKey);
     renderStatuses(); updateBoxes(); resetSave(); $("sendBox").hidden = true;
   });
-  $("members").addEventListener("change", function () { syncMemberInputs(); resetSave(); });
+  $("members").addEventListener("change", function () { syncMemberInputs(); resetSave(); renderLastNote(); });
   $("members").addEventListener("input", resetSave);
   document.querySelectorAll("[data-min]").forEach(function (b) {
     b.addEventListener("click", function () { $("minutes").value = b.getAttribute("data-min"); resetSave(); });
@@ -532,6 +585,7 @@
     $("month").hidden = true;
     $("aMonth").innerHTML = d.months.map(function (m) { return "<option>" + esc(m) + "</option>"; }).join("");
     if (OV) renderOverview(); else loadOverview(false);
+    loadReady();
   }
 
   function loadOverview(fresh) {
@@ -727,7 +781,7 @@
       $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices";
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
-      if (t === "invoices") loadInvoices();
+      if (t === "invoices") { loadInvoices(); loadReady(); }
       document.querySelectorAll("[data-sec]").forEach(function (x) { x.hidden = x.getAttribute("data-sec") !== t; });
       if (t === "arch") $("aQ").focus();
     });
@@ -873,9 +927,9 @@
   var VODAFONE_NUM = "01080306228";
 
   function loadInvoices(force) {
-    if (INV && !force) return renderInvoiceList();
+    if (INV && !force) return Promise.resolve(renderInvoiceList());
     $("invFamilyList").innerHTML = '<div class="loading">جارٍ تحميل قائمة الأسر…</div>';
-    api("invoiceList", { isNext: invIsNextMode }).then(function (r) {
+    return api("invoiceList", { isNext: invIsNextMode }).then(function (r) {
       INV = r;
       var curName = r.currentMonth || r.month || "";
       var nextName = r.nextMonth || "";
@@ -967,6 +1021,40 @@
       $("invOutput").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
     });
   });
+
+  /* ---------- الفواتير الجاهزة (تُسجَّل تلقائيًا في تبويب «فواتير جاهزة») ---------- */
+  var READY = [];
+  function loadReady() {
+    api("readyList", {}).then(function (r) { READY = r.ready || []; renderReady(); }).catch(function () {});
+  }
+  function renderReady() {
+    var host = $("invReady");
+    if (!host) { $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady"); }
+    var tb = document.querySelector('[data-atab="invoices"]');
+    if (tb) tb.textContent = "الفواتير" + (READY.length ? " (" + READY.length + ")" : "");
+    host.hidden = !READY.length;
+    if (!READY.length) { host.innerHTML = ""; return; }
+    host.innerHTML = "<h2>فواتير جاهزة للإرسال (" + READY.length + ")</h2>" +
+      '<div class="note">سُجّلت تلقائيًا عند انتهاء مجالس الأسرة أو بعد انتهاء الشهر. اضغط «تحديدها» لتظهر محدَّدة في القائمة أدناه، ثم اعرضها أو حمّلها صورًا.</div>' +
+      READY.map(function (x) {
+        return '<div class="inv-family-row"><span class="inv-fname">' + esc(x.name) + '</span><span class="note">' + esc(x.reason) + " — " + esc(x.month) + '</span><span class="inv-rem">' +
+          (x.due > 0 ? "المطلوب " + fmt(x.due) + " " + esc(x.currency || "ج") : "لا مبلغ مستحق") + "</span></div>";
+      }).join("") +
+      '<div class="actions"><button type="button" class="primary small" id="readySel">تحديدها في القائمة</button> <button type="button" class="ghost small" id="readyDone">تم إرسالها</button></div>';
+    $("readySel").addEventListener("click", function () {
+      invIsNextMode = READY[READY.length - 1].mode === "next";
+      var codes = READY.filter(function (x) { return x.mode === READY[READY.length - 1].mode; }).map(function (x) { return x.code; });
+      loadInvoices(true).then(function () {
+        document.querySelectorAll(".inv-chk").forEach(function (c) { c.checked = codes.indexOf(c.getAttribute("data-code")) !== -1; });
+        $("invFamilyList").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    $("readyDone").addEventListener("click", function () {
+      var ids = READY.map(function (x) { return x.id; });
+      api("readyMark", { ids: ids }).then(function () { READY = []; renderReady(); showMsg("✓ سُجّلت الفواتير على أنها أُرسلت.", true); })
+        .catch(function (e) { showMsg("⚠ " + e.message, false); });
+    });
+  }
 
   function renderInvoices(invoices) {
     if (!invoices.length) { $("invOutput").innerHTML = '<div class="note">لا توجد بيانات.</div>'; return; }
