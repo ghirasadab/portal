@@ -773,12 +773,78 @@
   $("asHome").addEventListener("click", backHome);
   $("aFresh").addEventListener("click", function () { loadOverview(true); });
   $("aMonth").addEventListener("change", function () { loadOverview(false); });
+  /* ---------- العطل العامة ---------- */
+  var HOL = [];
+  function holTxt(k) { var p = String(k).split(" "); return fmtDate(p[0]) + " " + fmtTime(p[1]); }
+  (function buildHolidayTab() {
+    var tabs = document.querySelector(".admin-tabs"), sp = tabs && tabs.querySelector(".spacer");
+    if (!tabs) return;
+    sp.insertAdjacentHTML("beforebegin", '<button type="button" class="tab" data-atab="holidays">العطل</button>');
+    $("adminView").insertAdjacentHTML("beforeend",
+      '<div id="aHol" hidden><section class="card"><h2>العطل العامة</h2>' +
+      '<div class="note">حدّد بداية العطلة ونهايتها بالتاريخ والوقت. اليوم الذي تغطيه العطلة كاملًا يُلوَّن في جداول جميع المعلمين باللون المخصص لـ«عطلة عامة»، واليوم الذي تغطيه جزئيًا تُلوَّن فيه المجالس التي يقع موعدها في الكالندر ضمن الوقت المحدد فقط. يُلوَّن الفارغ من الخانات فقط، فلا يُمسّ أي مجلس مسجَّل.</div>' +
+      '<div class="row2"><div class="field"><label for="holStart">بداية العطلة</label><input id="holStart" type="datetime-local"></div>' +
+      '<div class="field"><label for="holEnd">نهاية العطلة</label><input id="holEnd" type="datetime-local"></div></div>' +
+      '<div class="min-row"><input id="holName" type="text" placeholder="اسم العطلة (اختياري)" style="flex:1;min-width:140px">' +
+      '<button type="button" class="ghost small" id="holFull">يوم كامل</button>' +
+      '<button type="button" class="primary small" id="holAdd">إضافة عطلة عامة</button></div>' +
+      '<div id="holResult"></div></section>' +
+      '<section class="card"><h2>العطل المسجَّلة</h2><div id="holList"><div class="loading">جارٍ التحميل…</div></div></section></div>');
+    $("holFull").addEventListener("click", function () {
+      var d = ($("holStart").value || ($("holEnd").value) || (AD && AD.today) || "").slice(0, 10);
+      if (!d) return showMsg("⚠ اختر تاريخ البداية أولًا.", false);
+      $("holStart").value = d + "T00:00"; $("holEnd").value = ($("holEnd").value && $("holEnd").value.slice(0, 10) > d ? $("holEnd").value.slice(0, 10) : d) + "T23:59";
+    });
+    $("holStart").addEventListener("change", function () {
+      if ($("holStart").value && !$("holEnd").value) $("holEnd").value = $("holStart").value.slice(0, 10) + "T23:59";
+    });
+    $("holAdd").addEventListener("click", function () {
+      var st = $("holStart").value, en = $("holEnd").value;
+      if (!st || !en) return showMsg("⚠ حدّد بداية العطلة ونهايتها.", false);
+      if (en <= st) return showMsg("⚠ يجب أن تكون نهاية العطلة بعد بدايتها.", false);
+      holRun("holidayAdd", { start: st, end: en, name: $("holName").value }, "جارٍ تلوين جداول المعلمين… قد يستغرق ذلك دقائق إن طالت العطلة.");
+    });
+    $("holList").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-hs]"); if (!b) return;
+      var act = b.getAttribute("data-act");
+      if (act === "remove" && !window.confirm("تُزال العطلة ويُزال لونها من الخانات الفارغة في جداول المعلمين. هل تتابع؟")) return;
+      holRun(act === "remove" ? "holidayRemove" : "holidayAdd", { start: b.getAttribute("data-hs"), end: b.getAttribute("data-he") }, "جارٍ تحديث جداول المعلمين…");
+    });
+  })();
+  function loadHolidays() {
+    api("holidayList", {}).then(function (r) { HOL = r.holidays || []; renderHolidays(); })
+      .catch(function (e) { $("holList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  function renderHolidays() {
+    $("holList").innerHTML = HOL.length ? HOL.map(function (h) {
+      return '<div class="inv-family-row"><span class="inv-fname">' + esc(h.name) + " — من " + esc(holTxt(h.start)) + " إلى " + esc(holTxt(h.end)) + '</span>' +
+        '<button type="button" class="ghost small" data-act="add" data-hs="' + esc(h.start) + '" data-he="' + esc(h.end) + '">إعادة التطبيق</button> ' +
+        '<button type="button" class="ghost small" data-act="remove" data-hs="' + esc(h.start) + '" data-he="' + esc(h.end) + '">إلغاء</button></div>';
+    }).join("") : '<div class="note">لا توجد عطل مسجَّلة.</div>';
+  }
+  function holRun(action, payload, wait) {
+    var box = $("holResult");
+    box.innerHTML = '<div class="loading">' + esc(wait) + "</div>";
+    document.querySelectorAll("#aHol button").forEach(function (b) { b.disabled = true; });
+    api(action, payload).then(function (r) {
+      var removed = action === "holidayRemove";
+      box.innerHTML = '<div class="note">✓ ' + (removed ? "أُلغيت العطلة" : (r.already ? "العطلة مسجَّلة من قبل، وأُعيد تطبيقها" : "أُضيفت العطلة")) +
+        ": " + (removed ? "أُزيل اللون من " : "لُوِّن ") + numf(r.cells) + " خانة في جداول " + numf(r.teachers) + " معلمًا." +
+        (r.kept && !removed ? "<br>تُركت " + numf(r.kept) + " خانة لأن فيها مجلسًا أو حالة مسجَّلة." : "") +
+        (r.skipped && r.skipped.length ? "<br>⚠ " + r.skipped.map(esc).join("<br>⚠ ") : "") + "</div>";
+      OV = null;
+      loadHolidays();
+    }).catch(function (e) { box.innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; })
+      .then(function () { document.querySelectorAll("#aHol button").forEach(function (b) { b.disabled = false; }); });
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals" || t === "invoices";
-      $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices";
+      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays";
+      $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices"; $("aHol").hidden = t !== "holidays";
+      if (t === "holidays") loadHolidays();
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
       if (t === "invoices") { loadInvoices(); loadReady(); }
@@ -820,8 +886,11 @@
       '<div class="field"><label>العمر</label><input class="rf-age" value="' + esc(x.age || "") + '"></div></div>' +
       '<div class="field"><label>ولي الأمر</label><input class="rf-parent" list="rfFamilies" placeholder="اكتب اسم ولي الأمر أو اختر أسرة مسجَّلة">' +
       '<label class="chk"><input type="checkbox" class="rf-new"> أسرة جديدة</label></div>' +
-      '<div class="row2"><div class="field"><label>الباقة (عدد المجالس)</label><input class="rf-pkg" inputmode="decimal"></div>' +
+      '<div class="row2"><div class="field"><label>الباقة الشهرية (عدد المجالس)</label><input class="rf-pkg" inputmode="decimal"></div>' +
       '<div class="field"><label>سعر المجلس</label><input class="rf-price" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
+      '<div class="row2"><div class="field"><label>تاريخ أول مجلس</label><input class="rf-start" type="date" value="' + esc((AD && AD.today) || "") + '"></div>' +
+      '<div class="field"><label>أيام الدرس</label><input class="rf-pdays" placeholder="مثال: الأحد والأربعاء"></div></div>' +
+      '<div class="note rf-prev">اكتب الباقة وتاريخ أول مجلس وأيام الدرس، فيُحسب عدد مجالس هذا الشهر وفاتورته. اترك التاريخ فارغًا لتسجيل الباقة كاملة.</div>' +
       '<div class="field"><label>المعلم</label><select class="rf-teacher date-sel"><option value="">— اختر —</option>' + (EVS ? EVS.teachers.map(function (n) { return "<option>" + esc(n) + "</option>"; }).join("") : "") + "</select></div>" +
       '<div class="field"><label>طريقة الإضافة</label><select class="rf-mode date-sel"><option value="single">مجلس فردي</option><option value="newgroup">مجموعة جديدة</option>' +
       '<option value="join">إلى مجموعة موجودة</option><option value="pair">مع طالب فردي ليصيرا مجموعة</option></select>' +
@@ -862,6 +931,23 @@
         .catch(function (e2) { showMsg("⚠ " + e2.message, false); });
     }
   });
+  // معاينة عدد مجالس هذا الشهر وفاتورته أثناء الكتابة
+  var rfPrevT = null;
+  function rfPreview(f) {
+    var q = function (c) { return f.querySelector(c).value.trim(); }, box = f.querySelector(".rf-prev");
+    var pkg = digits(q(".rf-pkg"));
+    if (pkg === "" || isNaN(Number(pkg))) { box.textContent = "اكتب الباقة الشهرية أولًا."; return; }
+    var start = q(".rf-start"), days = q(".rf-pdays") || q(".rf-days");
+    if (!start || !days) { box.textContent = "دون تاريخ بدء وأيام درس تُسجَّل الباقة كاملة (" + pkg + ")."; return; }
+    box.textContent = "جارٍ الحساب…";
+    api("evalPreview", { package: pkg, price: digits(q(".rf-price")), startDate: start, firstDays: days })
+      .then(function (r) { box.textContent = r.message || ""; })
+      .catch(function (e) { box.textContent = "⚠ " + e.message; });
+  }
+  $("evList").addEventListener("input", function (e) {
+    var f = e.target.closest(".reg-form"); if (!f || !/rf-(pkg|price|start|pdays|days)/.test(e.target.className)) return;
+    clearTimeout(rfPrevT); rfPrevT = setTimeout(function () { rfPreview(f); }, 500);
+  });
   $("evList").addEventListener("click", function (e) {
     var rg = e.target.closest("[data-reg]");
     if (rg) {
@@ -888,19 +974,23 @@
     var f = btn.closest(".reg-form"), it = btn.closest(".ev-item"), q = function (c) { return f.querySelector(c).value.trim(); };
     var mode = q(".rf-mode"), p = { id: it.getAttribute("data-id"), name: q(".rf-name"), age: q(".rf-age"), parent: q(".rf-parent"),
       newFamily: f.querySelector(".rf-new").checked, package: q(".rf-pkg"), price: q(".rf-price"), teacher: q(".rf-teacher"), mode: mode,
-      category: q(".rf-cat"), days: q(".rf-days"), rate: q(".rf-rate"), note: it.querySelector(".evN").value };
+      category: q(".rf-cat"), days: q(".rf-days"), rate: q(".rf-rate"), note: it.querySelector(".evN").value,
+      startDate: q(".rf-start"), firstDays: q(".rf-pdays") };
     if (mode === "join") p.groupStart = q(".rf-target");
     if (mode === "pair") p.pairCode = q(".rf-target");
     if (!p.parent) return showMsg("⚠ اكتب اسم ولي الأمر.", false);
     if (p.price === "") return showMsg("⚠ اكتب سعر المجلس (0 إن كان تطوّعًا).", false);
     if (!p.teacher) return showMsg("⚠ اختر المعلم.", false);
+    if (p.package !== "" && p.startDate && !(p.firstDays || p.days)) return showMsg("⚠ اكتب أيام الدرس لحساب مجالس هذا الشهر، أو أفرغ تاريخ أول مجلس لتسجيل الباقة كاملة.", false);
     if ((mode === "join" && !p.groupStart) || (mode === "pair" && !p.pairCode)) return showMsg("⚠ اختر " + (mode === "join" ? "المجموعة" : "الطالب الفردي") + ".", false);
     btn.disabled = true; btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
     api("evalRegister", p).then(function (r) {
       var x = EV.evals.filter(function (y) { return y.id === p.id; })[0];
       x.status = "وُزّع"; x.assigned = p.teacher; x.assignNote = "الكود " + r.code;
       renderEvals();
-      showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message, true);
+      var fmTxt = r.firstMonth && r.firstMonth.applies ? "\nمجالس هذا الشهر: " + r.firstMonth.sessions + " من " + r.firstMonth.monthly + " (فاتورته " + r.firstMonth.total + ")" +
+        (r.firstMonth.sessions < r.firstMonth.monthly ? "، وتعود الباقة الشهرية كاملة بعد قفل الشهر." : "") : "";
+      showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message + fmTxt, true);
     }).catch(function (e) { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; showMsg("⚠ " + e.message, false); });
   }
 
