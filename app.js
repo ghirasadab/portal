@@ -19,7 +19,8 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 45000);
+    var isLong = action === "evalRegister";   // تسجيل الطالب المقيَّم قد يستغرق دقيقة
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -32,7 +33,7 @@
         return res;
       }, function (e) {
         clearTimeout(timer);
-        if (e && e.name === "AbortError") throw new Error("لم يصل رد من الخادم. تحقق من الاتصال وأعد المحاولة.");
+        if (e && e.name === "AbortError") throw new Error(isLong ? "لم يصل الرد بعد. قد يكون التسجيل قد تم، فحدّث قائمة التقييمات قبل إعادة المحاولة." : "لم يصل رد من الخادم. تحقق من الاتصال وأعد المحاولة.");
         if (e && /fetch|network|json/i.test(String(e.message || e))) throw new Error("تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.");
         throw e;
       });
@@ -1007,6 +1008,9 @@
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
       ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
       : "";
+    var arrRow = sm.arrears && sm.arrears > 0
+      ? '<div class="isum-row muted"><span>متأخرات سابقة</span><span class="inum-val">' + fmt(sm.arrears) + " " + cur + '</span></div>'
+      : "";
     var discRow = sm.discount && sm.discount > 0
       ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
       : "";
@@ -1040,6 +1044,7 @@
         '<div class="inv-summary-box">' +
           '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.total) + " " + cur + '</span></div>' +
           prevRow +
+          arrRow +
           discRow +
           paidRow +
           (sm.due > 0
