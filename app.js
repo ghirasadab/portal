@@ -1139,13 +1139,36 @@
     });
   });
 
+  // نافذة منبثقة تعرض الفواتير (تُنشأ عند أول فتح، وتنتقل إليها منطقة العرض invOutput)
+  function invModal() {
+    var m = $("invModal");
+    if (m) return m;
+    m = document.createElement("div");
+    m.id = "invModal";
+    m.style.cssText = "position:fixed;top:0;right:0;bottom:0;left:0;z-index:1000;background:rgba(0,0,0,.55);display:none;overflow:auto;padding:16px;-webkit-overflow-scrolling:touch";
+    m.innerHTML = '<div id="invModalBox" style="max-width:480px;margin:0 auto;background:var(--bg,#fff);border-radius:14px;padding:10px 10px 2px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>الفواتير المحددة</b> <small style="opacity:.5">نسخة 202610261535</small>' +
+      '<button type="button" class="ghost small" id="invModalClose">✕ إغلاق</button></div></div>';
+    document.body.appendChild(m);
+    $("invModalBox").appendChild($("invOutput"));
+    m.addEventListener("click", function (e) { if (e.target === m) closeInvModal(); });
+    $("invModalClose").addEventListener("click", closeInvModal);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeInvModal(); });
+    return m;
+  }
+  function openInvModal() { invModal().style.display = "block"; document.body.style.overflow = "hidden"; $("invModal").scrollTop = 0; }
+  function closeInvModal() {
+    var m = $("invModal");
+    if (m) { m.style.display = "none"; document.body.style.overflow = ""; }
+  }
+
   // عرض الفواتير المحددة
   $("invGenerate").addEventListener("click", function () {
     var codes = [];
     document.querySelectorAll(".inv-chk:checked").forEach(function (c) { codes.push(c.getAttribute("data-code")); });
     if (!codes.length) return showMsg("⚠ حدّد أسرة واحدة على الأقل.", false);
     $("invOutput").innerHTML = '<div class="loading">جارٍ تحميل بيانات الفواتير…</div>';
-    $("invOutput").scrollIntoView({ behavior: "smooth", block: "start" });
+    openInvModal();
     api("invoiceData", { families: codes, isNext: invIsNextMode }).then(function (r) {
       currentInvoicesLoaded = r.invoices || [];
       renderInvoices(currentInvoicesLoaded);
@@ -1161,7 +1184,7 @@
   }
   function renderReady() {
     var host = $("invReady");
-    if (!host) { $("invOutput").insertAdjacentHTML("afterend", '<section class="card" id="invReady" hidden></section>'); host = $("invReady"); }
+    if (!host) { $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady"); }
     var tb = document.querySelector('[data-atab="invoices"]');
     if (tb) tb.textContent = "الفواتير" + (READY.length ? " (" + READY.length + ")" : "");
     host.hidden = !READY.length;
