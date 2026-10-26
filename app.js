@@ -1184,13 +1184,25 @@
   }
   function renderReady() {
     var host = $("invReady");
-    if (!host) { $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady"); }
+    if (!host) {
+      // على الشاشات العريضة تصير الفواتير الجاهزة عمودًا جانبيًا على يسار الصفحة، وعلى الجوال بطاقة عادية
+      if (!document.getElementById("readyCss")) {
+        var st = document.createElement("style"); st.id = "readyCss";
+        st.textContent = "#invReady .inv-family-row{flex-wrap:wrap}#invReady .inv-rem{margin-inline-start:0}#invReady .actions{margin-top:8px}" +
+          "@media (min-width:1100px){#aInvoices:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}" +
+          "#aInvoices>#invReady{grid-column:2;grid-row:1/span 3;position:sticky;top:10px;max-height:calc(100vh - 20px);overflow:auto;margin-bottom:0}" +
+          "#aInvoices>#invOutput,#aInvoices>section.card:not(#invReady){grid-column:1}}" +
+          "@media (max-width:1099px){#invReady{max-height:45vh;overflow:auto}}";
+        document.head.appendChild(st);
+      }
+      $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady");
+    }
     var tb = document.querySelector('[data-atab="invoices"]');
     if (tb) tb.textContent = "الفواتير" + (READY.length ? " (" + READY.length + ")" : "");
     host.hidden = !READY.length;
     if (!READY.length) { host.innerHTML = ""; return; }
     host.innerHTML = "<h2>فواتير جاهزة للإرسال (" + READY.length + ")</h2>" +
-      '<div class="note">سُجّلت تلقائيًا عند انتهاء مجالس الأسرة أو بعد انتهاء الشهر. اضغط «تحديدها» لتظهر محدَّدة في القائمة أدناه، ثم اعرضها أو حمّلها صورًا.</div>' +
+      '<div class="note">سُجّلت تلقائيًا عند انتهاء مجالس الأسرة أو بعد انتهاء الشهر. اضغط «تحديدها» لتظهر محدَّدة في القائمة، ثم اعرضها أو حمّلها صورًا.</div>' +
       READY.map(function (x) {
         return '<div class="inv-family-row"><span class="inv-fname">' + esc(x.name) + '</span><span class="note">' + esc(x.reason) + " — " + esc(x.month) + '</span><span class="inv-rem">' +
           (x.due > 0 ? "المطلوب " + fmt(x.due) + " " + esc(x.currency || "ج") : "لا مبلغ مستحق") + "</span></div>";
