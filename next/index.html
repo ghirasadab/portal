@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>بورتال غراس</title>
+<meta name="theme-color" content="#14461A">
+<link rel="manifest" href="manifest.webmanifest">
+<script>
+  // الوضع الغامق: نفس إعداد موقع غراس الأدب
+  (function () {
+    try {
+      var t = localStorage.getItem("ga-theme");
+      if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.classList.add("ga-dark");
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Kufam:wght@600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-32x32.jpeg" sizes="32x32">
+<link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-192x192.jpeg" sizes="192x192">
+<link rel="apple-touch-icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-180x180.jpeg">
+<link rel="stylesheet" href="/style.css?v=202610261400">
+<link rel="stylesheet" href="admin-shell.css?v=202610262100">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <span class="brand-logo"><img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" width="76" height="46"></span>
+      <div class="brand-sub">بورتال غراس</div>
+    </div>
+    <input id="gSearch" class="gsearch" type="search" placeholder="ابحث في الأرشيف: طالب أو أسرة أو رمز أو معلم" aria-label="بحث شامل" autocomplete="off">
+    <div class="top-tools">
+      <button type="button" class="icon-btn" id="navBtn" aria-label="القائمة">☰</button>
+      <span class="who" id="who"></span>
+      <select id="month" class="month-sel" aria-label="الشهر" hidden></select>
+      <button type="button" class="icon-btn" id="myStatsBtn" title="إحصاءاتي" aria-label="إحصاءاتي" hidden>📊</button>
+      <button type="button" class="icon-btn" id="refresh" title="تحديث" aria-label="تحديث">⟳</button>
+      <button type="button" class="icon-btn" id="theme" title="الوضع الغامق" aria-label="تبديل الوضع الغامق">◐</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="msg" class="msg" role="status" hidden></div>
+
+  <section id="gate" class="card gate" hidden>
+    <h1>مرحبًا بك في بوابة المعلمين</h1>
+    <p id="gateText">افتح البوابة من الرابط الخاص بك الذي أرسلته إليك الإدارة.</p>
+  </section>
+
+  <div id="loading" class="loading">جارٍ تحميل البيانات…</div>
+
+  <!-- شريط المدير أثناء فتح شيت معلم -->
+  <div id="asBar" class="as-bar" hidden>
+    <span>أنت تعمل بصفة <b>المدير</b> على مجالس:</span>
+    <select id="asSel" aria-label="اختر المعلم"></select>
+    <button type="button" class="link-btn light" id="asHome">→ صفحة المدير</button>
+  </div>
+
+  <!-- صفحة المدير -->
+  <div id="adminView" hidden>
+    <div class="admin-tabs">
+      <button type="button" class="tab on" data-atab="today">اليوم</button>
+      <button type="button" class="tab" data-atab="stats">الإحصاءات</button>
+      <button type="button" class="tab" data-atab="pay">الرواتب</button>
+      <button type="button" class="tab" data-atab="money">المالية</button>
+      <button type="button" class="tab" data-atab="evals">التقييمات</button>
+      <button type="button" class="tab" data-atab="arch">الأرشيف</button>
+      <button type="button" class="tab" data-atab="invoices">الفواتير</button>
+      <span class="spacer"></span>
+      <select id="aMonth" class="date-sel" aria-label="الشهر"></select>
+      <button type="button" class="ghost small" id="aFresh">⟳ تحديث الأرقام</button>
+    </div>
+
+    <div id="aSum">
+      <div id="aLoading" class="loading">جارٍ جمع الأرقام من جداول المعلمين… قد يستغرق ذلك نصف دقيقة.</div>
+      <div id="aBody" hidden>
+        <div class="note" id="aUpdated"></div>
+        <div data-sec="money" hidden>
+          <h2>الملخص المالي — <span id="aMoneyMonth"></span></h2>
+          <div class="cards" id="aMoney"></div>
+          <div class="cards" id="aFamilies"></div>
+        </div>
+
+        <section class="card" id="aTodayCard" data-sec="today">
+          <h2 id="aTodayHead">متابعة اليوم</h2>
+          <div id="aToday"></div>
+        </section>
+
+        <div data-sec="stats" hidden>
+          <div class="cards" id="sKpis"></div>
+          <section class="card">
+            <h2>المعلمون — <span class="mLbl"></span></h2>
+            <div class="table-wrap"><table class="tbl" id="sTable">
+              <thead><tr><th>المعلم</th><th>المجالس</th><th>الساعات</th><th>التقييمات</th><th>حضور</th><th>تعويض</th><th>غياب دون تنبيه</th><th>تأجيل من المعلم</th><th>تأجيل من الطالب</th><th>آخر تسجيل</th></tr></thead>
+              <tbody></tbody><tfoot></tfoot></table></div>
+            <div class="note">اضغط اسم المعلم لعرض إحصاءات طلابه. الحضور والغياب والتأجيل يُعدّ لكل مجلس مرة واحدة في اليوم.</div>
+          </section>
+          <section class="card" id="sDetail" hidden></section>
+        </div>
+
+        <div data-sec="pay" hidden>
+          <div class="cards" id="pKpis"></div>
+          <section class="card">
+            <div class="min-row" style="justify-content:space-between">
+              <h2 style="margin:0">رواتب المعلمين — <span class="mLbl"></span></h2>
+              <select id="pFilter" class="date-sel" aria-label="تصفية">
+                <option value="all">كل المعلمين</option>
+                <option value="yes">حصلوا على حافز الإنترنت</option>
+                <option value="no">لم يحصلوا عليه</option>
+              </select>
+            </div>
+            <div class="table-wrap"><table class="tbl" id="pTable">
+              <thead><tr><th>المعلم</th><th>المجالس</th><th>الساعات</th><th>التقييمات</th><th>الأجر قبل الحافز</th><th>حدّ الحافز</th><th>الحافز</th><th>إجمالي الأجر</th><th>ملاحظة</th></tr></thead>
+              <tbody></tbody><tfoot></tfoot></table></div>
+            <div class="note">الأرقام من «ملخص الشهر» في جدول كل معلم.</div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="aEvals" hidden>
+      <section class="card">
+        <div class="min-row" style="justify-content:space-between">
+          <h2 style="margin:0">تقييمات الطلاب الجدد</h2>
+          <select id="evFilter" class="date-sel" aria-label="تصفية">
+            <option value="جديد">لم يُوزَّعوا بعد</option>
+            <option value="وُزّع">وُزّعوا</option>
+            <option value="لم يلتحق">لم يلتحقوا</option>
+            <option value="">الكل</option>
+          </select>
+        </div>
+        <div id="evList"><div class="loading">جارٍ التحميل…</div></div>
+      </section>
+    </div>
+
+    <div id="aArch" hidden>
+      <section class="card">
+        <h2>البحث في أرشيف التقارير</h2>
+        <div class="min-row">
+          <input id="aQ" type="search" placeholder="اسم طالب أو أسرة أو رمز أو معلم" style="flex:1">
+          <button type="button" class="primary small" id="aGo">بحث</button>
+        </div>
+        <div id="aResults"></div>
+      </section>
+    </div>
+
+    <div id="aInvoices" hidden>
+      <div id="invOutput"></div>
+      <section class="card">
+        <div class="min-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h2 style="margin:0">فواتير الأسر — <span id="invMonth"></span></h2>
+            <div class="min-row" id="invMonthToggle" style="gap:6px;margin-top:6px">
+              <button type="button" class="chip active" id="invTabCur">📅 الشهر الحالي</button>
+              <button type="button" class="chip" id="invTabNext">⏭️ الشهر القادم</button>
+            </div>
+          </div>
+          <div class="min-row" style="gap:6px;flex-wrap:wrap">
+            <button type="button" class="ghost small" id="invSelAll">تحديد الكل</button>
+            <button type="button" class="ghost small" id="invSelDue">المستحقين فقط</button>
+            <button type="button" class="primary small" id="invGenerate">عرض الفواتير المحددة</button>
+            <button type="button" class="small" id="invSentMark" style="background:#2e7d32;color:#fff">✔ تم إرسال المحدد</button>
+            <button type="button" class="small" id="invZipBulk" style="background:var(--orange);color:#fff">📦 تحميل صور ZIP</button>
+          </div>
+        </div>
+        <div style="margin:10px 0 6px">
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px;margin-inline-end:10px"><input type="checkbox" id="invShowSent"> إظهار المرسلة</label>
+          <input id="invSearch" type="search" placeholder="بحث باسم الأسرة…" style="width:100%;max-width:320px;padding:6px 12px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px">
+        </div>
+        <div id="invFamilyList"><div class="loading">جارٍ التحميل…</div></div>
+      </section>
+    </div>
+  </div>
+
+  <section id="myStats" hidden>
+    <div class="min-row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">إحصاءاتي — <span id="msMonth"></span></h2>
+      <button type="button" class="link-btn" id="msBack">→ رجوع إلى المجالس</button>
+    </div>
+    <div id="msBody"><div class="loading">جارٍ التحميل…</div></div>
+  </section>
+
+  <div id="app" class="layout" hidden>
+    <!-- اختيار اليوم والمجلس -->
+    <section class="card side">
+      <div class="leave" id="leaveNote" hidden>أنت مسجَّل في إجازة حاليًا. يمكنك التسجيل كالمعتاد إن عقدت مجلسًا.</div>
+      <h2>اليوم</h2>
+      <div class="day-row">
+        <button type="button" class="chip" data-day="today">اليوم</button>
+        <button type="button" class="chip" data-day="yesterday">أمس</button>
+        <select id="date" class="date-sel" aria-label="التاريخ"></select>
+      </div>
+      <div class="search">
+        <input id="q" type="search" placeholder="ابحث عن طالب أو مجموعة" autocomplete="off">
+      </div>
+      <div class="eval-box" id="evalBox" hidden>
+        <button type="button" class="primary small" id="evalOpen">➕ تقييم طالب جديد</button>
+        <span class="note" id="evalCount"></span>
+      </div>
+      <h2 id="todayHead">مجالس اليوم</h2>
+      <ul id="unitsToday" class="units"></ul>
+      <h2 id="otherHead">باقي المجالس</h2>
+      <ul id="unitsOther" class="units"></ul>
+    </section>
+
+    <!-- تسجيل المجلس -->
+    <section class="card main" id="panel">
+      <div id="empty" class="empty-state">
+        <div class="empty-icon">📖</div>
+        <p>اختر مجلسًا من القائمة لتسجيل المجلس وكتابة التقرير.</p>
+      </div>
+
+      <div id="evalForm" hidden>
+        <div class="unit-head">
+          <div><div class="unit-cat">تقييم طالب جديد</div><h1 class="unit-title" id="evDate"></h1></div>
+          <button type="button" class="link-btn" id="evBack">→ رجوع</button>
+        </div>
+        <div class="field"><label for="evName">اسم الطالب</label><input id="evName" type="text" autocomplete="off"></div>
+        <div class="row2">
+          <div class="field"><label>النوع</label><div class="seg" id="evGender"><button type="button" data-v="ذكر">ذكر</button><button type="button" data-v="أنثى">أنثى</button></div></div>
+          <div class="field"><label for="evAge">العمر</label><input id="evAge" type="text" inputmode="numeric" placeholder="مثال: 9 سنوات"></div>
+        </div>
+        <div class="field"><label>الفئة</label><div class="seg" id="evCat"><button type="button" data-v="أدب">أدب</button><button type="button" data-v="تأسيس">تأسيس</button></div></div>
+        <div class="field"><label for="evReport">تقرير التقييم المفصّل</label><textarea id="evReport" rows="8" placeholder="المستوى في القراءة والكتابة والفهم، ونقاط القوة والضعف، والمجلس أو المستوى المقترح له…"></textarea></div>
+        <div class="actions"><button type="button" class="primary" id="evSave">حفظ التقييم</button></div>
+        <div class="note">يُحفظ التقييم عند الإدارة لتوزيع الطالب، ويُضاف إلى عدد تقييماتك في هذا اليوم.</div>
+      </div>
+
+      <div id="form" hidden>
+        <div class="unit-head">
+          <div>
+            <div class="unit-cat" id="uCat"></div>
+            <h1 class="unit-title" id="uTitle"></h1>
+            <div class="unit-meta" id="uMeta"></div>
+          </div>
+          <button type="button" class="link-btn" id="back">→ رجوع</button>
+        </div>
+
+        <details class="last" id="lastBox" hidden>
+          <summary>آخر تقرير لهذا المجلس <span id="lastDate"></span></summary>
+          <div id="lastBody"></div>
+          <button type="button" class="link-btn" id="historyBtn">عرض كل التقارير</button>
+          <div id="historyBody"></div>
+        </details>
+
+        <div class="existing" id="existing" hidden></div>
+
+        <h2>حالة المجلس — <span id="dateLabel"></span></h2>
+        <div class="statuses" id="statuses"></div>
+
+        <div id="minutesBox" class="field" hidden>
+          <label for="minutes">مدة المجلس (بالدقائق)</label>
+          <div class="min-row">
+            <input id="minutes" type="text" inputmode="numeric" placeholder="60">
+            <button type="button" class="chip" data-min="30">30</button>
+            <button type="button" class="chip" data-min="45">45</button>
+            <button type="button" class="chip" data-min="60">60</button>
+          </div>
+        </div>
+
+        <div id="membersBox" hidden>
+          <label>الطلاب في هذا المجلس</label>
+          <div class="note">اكتب نصيب كل طالب من الدقائق كما تكتبه في الجدول، وغيّر حالة من غاب منهم.</div>
+          <div id="members" class="members"></div>
+        </div>
+
+        <div id="reportBox" class="report" hidden>
+          <h2>تقرير المجلس</h2>
+          <div class="field"><label for="rStudied">ما درسناه</label><textarea id="rStudied" rows="3"></textarea></div>
+          <div class="field"><label for="rPerf" id="rPerfLbl">أداء الطالب في المجلس</label><textarea id="rPerf" rows="2"></textarea></div>
+          <div class="field"><label for="rNotes">ملاحظات أو تنبيهات</label><textarea id="rNotes" rows="2"></textarea></div>
+          <div class="field"><label for="rHome">التكليف (الواجب)</label><textarea id="rHome" rows="3"></textarea></div>
+          <div class="field" id="rIndWrap" hidden><label for="rInd">ملاحظات عن طالب بعينه (اختياري)</label><textarea id="rInd" rows="2" placeholder="مثال: سلمى: تحتاج إلى مراجعة درس الأمس."></textarea></div>
+          <div class="note">يُحفظ التقرير في أرشيف الطالب، ثم تُرسله إلى مجموعة الأسرة على واتساب، وترفق صور الواجب والتسجيل الصوتي من واتساب نفسه.</div>
+        </div>
+
+        <div class="confirm" id="confirm" hidden></div>
+        <div class="actions">
+          <button type="button" class="primary" id="save">حفظ</button>
+        </div>
+        <div class="send" id="sendBox" hidden>
+          <div class="ok-line" id="savedLine">✓ تم الحفظ</div>
+          <button type="button" class="wa" id="wa">إرسال التقرير إلى واتساب</button>
+          <button type="button" class="ghost" id="copy">نسخ نص التقرير</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="/config.js?v=202610210000"></script>
+<script src="/demo.js?v=202610210000"></script>
+<script src="/app.js?v=202610261535"></script>
+<script src="shell.js?v=202610262100"></script>
+</body>
+</html>

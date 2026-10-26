@@ -1,0 +1,36 @@
+/* بورتال غراس: شريط جانبي للمدير. يعتمد على أصناف البوابة الحالية ولا يغيّر منطقها. */
+#navBtn, .gsearch { display: none; }
+.gsearch { flex: 1 1 220px; max-width: 420px; min-width: 0; background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13.5px; }
+.gsearch::placeholder { color: rgba(255,255,255,.75); }
+body.is-admin .gsearch { display: block; }
+body.is-admin .wrap { max-width: 1360px; }
+body.is-admin #adminView { display: grid; grid-template-columns: 236px minmax(0, 1fr); column-gap: 18px; align-items: start; }
+body.is-admin #adminView > * { grid-column: 2; min-width: 0; }
+body.is-admin #adminView > .admin-tabs { grid-column: 1; grid-row: 1 / span 40; position: sticky; top: 74px; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; margin: 0; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); max-height: calc(100vh - 90px); overflow-y: auto; }
+.admin-tabs .nav-grp { font-size: 11.5px; color: var(--muted); padding: 12px 10px 3px; letter-spacing: .03em; }
+.admin-tabs .nav-grp:first-child { padding-top: 4px; }
+body.is-admin .admin-tabs .tab { display: flex; align-items: center; gap: 10px; text-align: right; border: 0; background: transparent; border-radius: 10px; padding: 9px 10px; font-family: "Cairo", sans-serif; font-weight: 600; font-size: 14.5px; }
+body.is-admin .admin-tabs .tab:hover { background: var(--mint); }
+body.is-admin .admin-tabs .tab.on { background: var(--green); color: #fff; }
+html.ga-dark body.is-admin .admin-tabs .tab.on { color: #0b2210; }
+body.is-admin .admin-tabs .tab::before { content: ""; flex: none; width: 18px; height: 18px; background: currentColor; opacity: .85; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; }
+body.is-admin .admin-tabs .spacer { flex: 0 0 8px; }
+body.is-admin .admin-tabs .date-sel, body.is-admin .admin-tabs .ghost { width: 100%; margin-top: 6px; }
+.tab[data-atab="today"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E"); }
+.tab[data-atab="stats"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 21h18M7 17V10M12 17V6M17 17v-4'/%3E%3C/svg%3E"); }
+.tab[data-atab="pay"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='2' y='6' width='20' height='12' rx='2'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E"); }
+.tab[data-atab="money"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M20 7H5a2 2 0 0 1 0-4h13v4'/%3E%3Cpath d='M3 5v14a2 2 0 0 0 2 2h15V7'/%3E%3C/svg%3E"); }
+.tab[data-atab="evals"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='m8.5 12 2.5 2.5 4.5-5'/%3E%3C/svg%3E"); }
+.tab[data-atab="arch"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z'/%3E%3Cpath d='M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z'/%3E%3C/svg%3E"); }
+.tab[data-atab="invoices"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/%3E%3Cpath d='M14 3v6h6M8 13h8M8 17h5'/%3E%3C/svg%3E"); }
+.tab[data-atab="holidays"] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E"); }
+#navScrim { display: none; }
+@media (max-width: 860px) {
+  body.is-admin #navBtn { display: inline-grid; place-items: center; }
+  body.is-admin #adminView { display: block; }
+  body.is-admin #adminView > .admin-tabs { position: fixed; z-index: 40; top: 0; bottom: 0; right: 0; width: min(290px, 86vw); max-height: none; border-radius: 0; padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(105%); transition: transform .2s; margin: 0; }
+  body.nav-open #adminView > .admin-tabs { transform: none; }
+  body.nav-open #navScrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.4); }
+  body.is-admin .gsearch { flex-basis: 100%; max-width: none; order: 5; }
+}
+@media (prefers-reduced-motion: reduce) { body.is-admin #adminView > .admin-tabs { transition: none; } }
