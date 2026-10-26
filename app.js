@@ -1087,7 +1087,24 @@
     if (hiddenSent) banner += '<div class="note">أُخفيت ' + hiddenSent + ' أسرة أُرسلت فواتيرها (تظهر بخيار «إظهار المرسلة»).</div>';
     $("invFamilyList").innerHTML = banner + (html || '<div class="note">لا توجد أسر مطابقة.</div>');
     if (only) $("invShowAll").addEventListener("click", function () { invOnlyCodes = null; renderInvoiceList(); });
+    updInvSel();
   }
+
+  // عدّاد الفواتير المحدَّدة
+  function updInvSel() {
+    var n = document.querySelectorAll(".inv-chk:checked").length;
+    var b = $("invSelBadge");
+    if (!b) {
+      var g = $("invGenerate");
+      if (!g) return;
+      b = document.createElement("span");
+      b.id = "invSelBadge"; b.className = "note";
+      b.style.cssText = "font-weight:700;padding:0 8px;white-space:nowrap";
+      g.parentNode.insertBefore(b, g.parentNode.firstChild);
+    }
+    b.textContent = n ? "المحدَّد: " + n.toLocaleString("ar-EG") + " فاتورة" : "لم تُحدَّد فواتير";
+  }
+  $("invFamilyList").addEventListener("change", function (e) { if (e.target && e.target.classList && e.target.classList.contains("inv-chk")) updInvSel(); });
 
   function fmt(n) {
     if (n == null || n === "" || isNaN(Number(n))) return "—";
@@ -1127,6 +1144,7 @@
     var chks = document.querySelectorAll(".inv-chk");
     var anyUnchecked = Array.prototype.some.call(chks, function (c) { return !c.checked; });
     chks.forEach(function (c) { c.checked = anyUnchecked; });
+    updInvSel();
   });
 
   // تحديد المستحقين فقط
@@ -1137,6 +1155,7 @@
       var rem = Number(c.getAttribute("data-rem") || 0);
       c.checked = rem > 0;
     });
+    updInvSel();
   });
 
   // نافذة منبثقة تعرض الفواتير (تُنشأ عند أول فتح، وتنتقل إليها منطقة العرض invOutput)
@@ -1215,6 +1234,7 @@
       invOnlyCodes = codes.map(String);
       loadInvoices(true).then(function () {
         document.querySelectorAll(".inv-chk").forEach(function (c) { c.checked = true; });
+        updInvSel();
         $("invFamilyList").scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
