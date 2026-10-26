@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>بوابة المعلمين — غراس الأدب</title>
+<title>بورتال غراس</title>
+<meta name="theme-color" content="#14461A">
+<link rel="manifest" href="manifest.webmanifest">
 <script>
   // الوضع الغامق: نفس إعداد موقع غراس الأدب
   (function () {
@@ -20,7 +22,8 @@
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-32x32.jpeg" sizes="32x32">
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-192x192.jpeg" sizes="192x192">
 <link rel="apple-touch-icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-180x180.jpeg">
-<link rel="stylesheet" href="style.css?v=202610261400">
+<link rel="stylesheet" href="/style.css?v=202610261400">
+<link rel="stylesheet" href="admin-shell.css?v=202610262100">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -31,9 +34,11 @@
   <div class="top-in">
     <div class="brand">
       <span class="brand-logo"><img src="https://ghiras-adab.com/wp-content/uploads/2026/10/ghiras-adab-logo-cropped.png" alt="غراس الأدب" width="76" height="46"></span>
-      <div class="brand-sub">بوابة المعلمين</div>
+      <div class="brand-sub">بورتال غراس</div>
     </div>
+    <input id="gSearch" class="gsearch" type="search" placeholder="ابحث في الأرشيف: طالب أو أسرة أو رمز أو معلم" aria-label="بحث شامل" autocomplete="off">
     <div class="top-tools">
+      <button type="button" class="icon-btn" id="navBtn" aria-label="القائمة">☰</button>
       <span class="who" id="who"></span>
       <select id="month" class="month-sel" aria-label="الشهر" hidden></select>
       <button type="button" class="icon-btn" id="myStatsBtn" title="إحصاءاتي" aria-label="إحصاءاتي" hidden>📊</button>
@@ -292,8 +297,9 @@
   </div>
 </main>
 
-<script src="config.js?v=202610210000"></script>
-<script src="demo.js?v=202610210000"></script>
-<script src="app.js?v=202610261535"></script>
+<script src="/config.js?v=202610210000"></script>
+<script src="/demo.js?v=202610210000"></script>
+<script src="/app.js?v=202610262145"></script>
+<script src="shell.js?v=202610262100"></script>
 </body>
 </html>
