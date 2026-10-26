@@ -1060,9 +1060,9 @@
       "#invGenerate,#invSentMark,#invZipBulk,#invSelAll,#invSelDue,#invSentOnly{width:auto!important;font:inherit!important;font-size:14px!important;font-weight:700!important;padding:6px 14px!important;border-radius:12px!important;border:1.5px solid var(--green)!important;background:transparent!important;color:var(--green)!important;cursor:pointer;box-shadow:none!important;line-height:1.4}" +
       "#invGenerate{background:var(--orange)!important;border-color:var(--orange)!important;color:#fff!important}" +
       "#invGenerate:hover{background:var(--orange-hover)!important}" +
-      "#invSentMark{background:var(--green)!important;color:#fff!important}" +
+      "#invSentMark{background:#2e7d32!important;border-color:#2e7d32!important;color:#fff!important}" +
       "#invZipBulk{border-color:var(--orange)!important;color:var(--orange)!important}" +
-      "#invSentOnly.on{background:var(--green)!important;color:#fff!important}" +
+      "#invSentOnly.on{background:#2e7d32!important;border-color:#2e7d32!important;color:#fff!important}" +
       "#invGenerate:disabled,#invSentMark:disabled,#invZipBulk:disabled{opacity:.6;cursor:default}";
     document.head.appendChild(st);
   })();
@@ -1326,6 +1326,9 @@
     var discRow = sm.discount && sm.discount > 0
       ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
       : "";
+    var adjRow = sm.adjust
+      ? '<div class="isum-row muted"><span>تعديل</span><span class="inum-val">' + (sm.adjust < 0 ? "−" : "+") + fmt(Math.abs(sm.adjust)) + " " + cur + '</span></div>'
+      : "";
     var paidRow = sm.paid > 0
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
@@ -1359,6 +1362,7 @@
           arrRow +
           discRow +
           paidRow +
+          adjRow +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
