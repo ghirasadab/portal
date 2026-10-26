@@ -239,7 +239,7 @@ html.ga-dark .tab.on { color: #0b2210; }
 /* ===== بطاقة الفاتورة ===== */
 .inv-card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-  margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow); max-width: 600px;
+  margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow); max-width: 440px; width: 100%;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%231B5E20' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M40 12l8 20 20 8-20 8-8 20-8-20-20-8 20-8z'/%3E%3Crect x='26' y='26' width='28' height='28' transform='rotate(45 40 40)'/%3E%3C/g%3E%3C/svg%3E");
 }
 

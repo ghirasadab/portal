@@ -1245,7 +1245,7 @@
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
 
-    return '<div class="inv-card" id="invCard_' + idx + '">' +
+    return '<div class="inv-card" id="invCard_' + idx + '" style="max-width:440px;width:100%">' +
       // هيدر بلوجو
       '<div class="inv-card-head">' +
         '<div class="inv-head-logo">' +
