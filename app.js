@@ -1053,6 +1053,20 @@
     loadInvoices(true);
   });
 
+  // توحيد شكل أزرار شريط الفواتير: قالب واحد، والألوان تدل على الوظيفة
+  (function () {
+    var st = document.createElement("style");
+    st.textContent =
+      "#invGenerate,#invSentMark,#invZipBulk,#invSelAll,#invSelDue,#invSentOnly{width:auto!important;font:inherit!important;font-size:14px!important;font-weight:700!important;padding:6px 14px!important;border-radius:12px!important;border:1.5px solid var(--green)!important;background:transparent!important;color:var(--green)!important;cursor:pointer;box-shadow:none!important;line-height:1.4}" +
+      "#invGenerate{background:var(--orange)!important;border-color:var(--orange)!important;color:#fff!important}" +
+      "#invGenerate:hover{background:var(--orange-hover)!important}" +
+      "#invSentMark{background:var(--green)!important;color:#fff!important}" +
+      "#invZipBulk{border-color:var(--orange)!important;color:var(--orange)!important}" +
+      "#invSentOnly.on{background:var(--green)!important;color:#fff!important}" +
+      "#invGenerate:disabled,#invSentMark:disabled,#invZipBulk:disabled{opacity:.6;cursor:default}";
+    document.head.appendChild(st);
+  })();
+
   // البحث في الأسر
   var invSearchInput = $("invSearch");
   if (invSearchInput) invSearchInput.addEventListener("input", renderInvoiceList);
@@ -1063,7 +1077,7 @@
   var invSentOnly = false, invSentOnlyBtn = null;
   if (invShowSentChk) {
     invSentOnlyBtn = document.createElement("button");
-    invSentOnlyBtn.type = "button"; invSentOnlyBtn.id = "invSentOnly"; invSentOnlyBtn.className = "ghost small";
+    invSentOnlyBtn.type = "button"; invSentOnlyBtn.id = "invSentOnly"; invSentOnlyBtn.className = "small";
     invSentOnlyBtn.textContent = "إظهار المرسلة فقط";
     invShowSentChk.closest("label").insertAdjacentElement("afterend", invSentOnlyBtn);
     invSentOnlyBtn.addEventListener("click", function () { invSentOnly = !invSentOnly; renderInvoiceList(); });
@@ -1074,7 +1088,7 @@
     var q = invSearchInput ? invSearchInput.value.trim() : "";
     var only = invOnlyCodes;
     var showSent = !!(invShowSentChk && invShowSentChk.checked), hiddenSent = 0;
-    if (invSentOnlyBtn) { invSentOnlyBtn.classList.toggle("primary", invSentOnly); invSentOnlyBtn.classList.toggle("ghost", !invSentOnly); }
+    if (invSentOnlyBtn) invSentOnlyBtn.classList.toggle("on", invSentOnly);
     var sentTotal = 0;
     INV.families.forEach(function (f) { if (f.sent) sentTotal++; });
     var html = INV.families.filter(function (f) {
