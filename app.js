@@ -1044,12 +1044,12 @@
   var tabCurBtn = $("invTabCur"), tabNextBtn = $("invTabNext");
   if (tabCurBtn) tabCurBtn.addEventListener("click", function () {
     if (!invIsNextMode) return;
-    invIsNextMode = false; invOnlyCodes = null;
+    invIsNextMode = false; invOnlyCodes = null; invSentOnly = false;
     loadInvoices(true);
   });
   if (tabNextBtn) tabNextBtn.addEventListener("click", function () {
     if (invIsNextMode) return;
-    invIsNextMode = true; invOnlyCodes = null;
+    invIsNextMode = true; invOnlyCodes = null; invSentOnly = false;
     loadInvoices(true);
   });
 
@@ -1059,13 +1059,26 @@
   // الأسر التي أُرسلت فواتيرها تُخفى افتراضيًا، ويُظهرها هذا الخيار
   var invShowSentChk = $("invShowSent");
   if (invShowSentChk) invShowSentChk.addEventListener("change", renderInvoiceList);
+  // زر «إظهار المرسلة فقط»: يعرض الأسر المرسلة وحدها
+  var invSentOnly = false, invSentOnlyBtn = null;
+  if (invShowSentChk) {
+    invSentOnlyBtn = document.createElement("button");
+    invSentOnlyBtn.type = "button"; invSentOnlyBtn.id = "invSentOnly"; invSentOnlyBtn.className = "ghost small";
+    invSentOnlyBtn.textContent = "إظهار المرسلة فقط";
+    invShowSentChk.closest("label").insertAdjacentElement("afterend", invSentOnlyBtn);
+    invSentOnlyBtn.addEventListener("click", function () { invSentOnly = !invSentOnly; renderInvoiceList(); });
+  }
 
   function renderInvoiceList() {
     if (!INV || !INV.families) return;
     var q = invSearchInput ? invSearchInput.value.trim() : "";
     var only = invOnlyCodes;
     var showSent = !!(invShowSentChk && invShowSentChk.checked), hiddenSent = 0;
+    if (invSentOnlyBtn) { invSentOnlyBtn.classList.toggle("primary", invSentOnly); invSentOnlyBtn.classList.toggle("ghost", !invSentOnly); }
+    var sentTotal = 0;
+    INV.families.forEach(function (f) { if (f.sent) sentTotal++; });
     var html = INV.families.filter(function (f) {
+      if (invSentOnly) return f.sent && (!q || String(f.name).indexOf(q) !== -1);
       if (f.sent && !showSent) { hiddenSent++; return false; }
       if (only && only.indexOf(String(f.code)) === -1) return false;
       return !q || String(f.name).indexOf(q) !== -1;
@@ -1081,12 +1094,15 @@
         amt +
         '</label>';
     }).join("");
-    var banner = only
+    var banner = invSentOnly
+      ? '<div class="note">المعروض: الأسر المرسلة فقط (' + sentTotal.toLocaleString("ar-EG") + ') <button type="button" class="link-btn" id="invSentOnlyOff">عرض الكل</button></div>'
+      : only
       ? '<div class="note">المعروض: الفواتير الجاهزة فقط (' + only.length + ') <button type="button" class="link-btn" id="invShowAll">عرض كل الأسر</button></div>'
       : "";
-    if (hiddenSent) banner += '<div class="note">أُخفيت ' + hiddenSent + ' أسرة أُرسلت فواتيرها (تظهر بخيار «إظهار المرسلة»).</div>';
+    if (hiddenSent && !invSentOnly) banner += '<div class="note">أُخفيت ' + hiddenSent + ' أسرة أُرسلت فواتيرها (تظهر بخيار «إظهار المرسلة»).</div>';
     $("invFamilyList").innerHTML = banner + (html || '<div class="note">لا توجد أسر مطابقة.</div>');
-    if (only) $("invShowAll").addEventListener("click", function () { invOnlyCodes = null; renderInvoiceList(); });
+    if (invSentOnly) $("invSentOnlyOff").addEventListener("click", function () { invSentOnly = false; renderInvoiceList(); });
+    else if (only) $("invShowAll").addEventListener("click", function () { invOnlyCodes = null; renderInvoiceList(); });
     updInvSel();
   }
 
