@@ -20,7 +20,7 @@
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-32x32.jpeg" sizes="32x32">
 <link rel="icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-192x192.jpeg" sizes="192x192">
 <link rel="apple-touch-icon" href="https://ghiras-adab.com/wp-content/uploads/2026/10/cropped-PROFI-L.jpg-180x180.jpeg">
-<link rel="stylesheet" href="style.css?v=202610220100">
+<link rel="stylesheet" href="style.css?v=202610261400">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -149,6 +149,7 @@
     </div>
 
     <div id="aInvoices" hidden>
+      <div id="invOutput"></div>
       <section class="card">
         <div class="min-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
@@ -162,15 +163,16 @@
             <button type="button" class="ghost small" id="invSelAll">تحديد الكل</button>
             <button type="button" class="ghost small" id="invSelDue">المستحقين فقط</button>
             <button type="button" class="primary small" id="invGenerate">عرض الفواتير المحددة</button>
+            <button type="button" class="small" id="invSentMark" style="background:#2e7d32;color:#fff">✔ تم إرسال المحدد</button>
             <button type="button" class="small" id="invZipBulk" style="background:var(--orange);color:#fff">📦 تحميل صور ZIP</button>
           </div>
         </div>
         <div style="margin:10px 0 6px">
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px;margin-inline-end:10px"><input type="checkbox" id="invShowSent"> إظهار المرسلة</label>
           <input id="invSearch" type="search" placeholder="بحث باسم الأسرة…" style="width:100%;max-width:320px;padding:6px 12px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px">
         </div>
         <div id="invFamilyList"><div class="loading">جارٍ التحميل…</div></div>
       </section>
-      <div id="invOutput"></div>
     </div>
   </div>
 
@@ -290,8 +292,8 @@
   </div>
 </main>
 
-<script src="config.js?v=202610242253"></script>
-<script src="demo.js?v=202610242253"></script>
-<script src="app.js?v=202610242253"></script>
+<script src="config.js?v=202610210000"></script>
+<script src="demo.js?v=202610210000"></script>
+<script src="app.js?v=202610261445"></script>
 </body>
 </html>
