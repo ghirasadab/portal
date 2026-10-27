@@ -1075,14 +1075,28 @@
   var tabCurBtn = $("invTabCur"), tabNextBtn = $("invTabNext");
   if (tabCurBtn) tabCurBtn.addEventListener("click", function () {
     if (!invIsNextMode) return;
-    invIsNextMode = false; invOnlyCodes = null;
+    invIsNextMode = false; invOnlyCodes = null; invSentOnly = false;
     loadInvoices(true);
   });
   if (tabNextBtn) tabNextBtn.addEventListener("click", function () {
     if (invIsNextMode) return;
-    invIsNextMode = true; invOnlyCodes = null;
+    invIsNextMode = true; invOnlyCodes = null; invSentOnly = false;
     loadInvoices(true);
   });
+
+  // توحيد شكل أزرار شريط الفواتير: قالب واحد، والألوان تدل على الوظيفة
+  (function () {
+    var st = document.createElement("style");
+    st.textContent =
+      "#invGenerate,#invSentMark,#invZipBulk,#invSelAll,#invSelDue,#invSentOnly{width:auto!important;font:inherit!important;font-size:14px!important;font-weight:700!important;padding:6px 14px!important;border-radius:12px!important;border:1.5px solid var(--green)!important;background:transparent!important;color:var(--green)!important;cursor:pointer;box-shadow:none!important;line-height:1.4}" +
+      "#invGenerate{background:var(--orange)!important;border-color:var(--orange)!important;color:#fff!important}" +
+      "#invGenerate:hover{background:var(--orange-hover)!important}" +
+      "#invSentMark{background:#2e7d32!important;border-color:#2e7d32!important;color:#fff!important}" +
+      "#invZipBulk{border-color:var(--orange)!important;color:var(--orange)!important}" +
+      "#invSentOnly.on{background:#2e7d32!important;border-color:#2e7d32!important;color:#fff!important}" +
+      "#invGenerate:disabled,#invSentMark:disabled,#invZipBulk:disabled{opacity:.6;cursor:default}";
+    document.head.appendChild(st);
+  })();
 
   // البحث في الأسر
   var invSearchInput = $("invSearch");
@@ -1090,13 +1104,26 @@
   // الأسر التي أُرسلت فواتيرها تُخفى افتراضيًا، ويُظهرها هذا الخيار
   var invShowSentChk = $("invShowSent");
   if (invShowSentChk) invShowSentChk.addEventListener("change", renderInvoiceList);
+  // زر «إظهار المرسلة فقط»: يعرض الأسر المرسلة وحدها
+  var invSentOnly = false, invSentOnlyBtn = null;
+  if (invShowSentChk) {
+    invSentOnlyBtn = document.createElement("button");
+    invSentOnlyBtn.type = "button"; invSentOnlyBtn.id = "invSentOnly"; invSentOnlyBtn.className = "small";
+    invSentOnlyBtn.textContent = "إظهار المرسلة فقط";
+    invShowSentChk.closest("label").insertAdjacentElement("afterend", invSentOnlyBtn);
+    invSentOnlyBtn.addEventListener("click", function () { invSentOnly = !invSentOnly; renderInvoiceList(); });
+  }
 
   function renderInvoiceList() {
     if (!INV || !INV.families) return;
     var q = invSearchInput ? invSearchInput.value.trim() : "";
     var only = invOnlyCodes;
     var showSent = !!(invShowSentChk && invShowSentChk.checked), hiddenSent = 0;
+    if (invSentOnlyBtn) invSentOnlyBtn.classList.toggle("on", invSentOnly);
+    var sentTotal = 0;
+    INV.families.forEach(function (f) { if (f.sent) sentTotal++; });
     var html = INV.families.filter(function (f) {
+      if (invSentOnly) return f.sent && (!q || String(f.name).indexOf(q) !== -1);
       if (f.sent && !showSent) { hiddenSent++; return false; }
       if (only && only.indexOf(String(f.code)) === -1) return false;
       return !q || String(f.name).indexOf(q) !== -1;
@@ -1112,13 +1139,33 @@
         amt +
         '</label>';
     }).join("");
-    var banner = only
+    var banner = invSentOnly
+      ? '<div class="note">المعروض: الأسر المرسلة فقط (' + sentTotal.toLocaleString("ar-EG") + ') <button type="button" class="link-btn" id="invSentOnlyOff">عرض الكل</button></div>'
+      : only
       ? '<div class="note">المعروض: الفواتير الجاهزة فقط (' + only.length + ') <button type="button" class="link-btn" id="invShowAll">عرض كل الأسر</button></div>'
       : "";
-    if (hiddenSent) banner += '<div class="note">أُخفيت ' + hiddenSent + ' أسرة أُرسلت فواتيرها (تظهر بخيار «إظهار المرسلة»).</div>';
+    if (hiddenSent && !invSentOnly) banner += '<div class="note">أُخفيت ' + hiddenSent + ' أسرة أُرسلت فواتيرها (تظهر بخيار «إظهار المرسلة»).</div>';
     $("invFamilyList").innerHTML = banner + (html || '<div class="note">لا توجد أسر مطابقة.</div>');
-    if (only) $("invShowAll").addEventListener("click", function () { invOnlyCodes = null; renderInvoiceList(); });
+    if (invSentOnly) $("invSentOnlyOff").addEventListener("click", function () { invSentOnly = false; renderInvoiceList(); });
+    else if (only) $("invShowAll").addEventListener("click", function () { invOnlyCodes = null; renderInvoiceList(); });
+    updInvSel();
   }
+
+  // عدّاد الفواتير المحدَّدة
+  function updInvSel() {
+    var n = document.querySelectorAll(".inv-chk:checked").length;
+    var b = $("invSelBadge");
+    if (!b) {
+      var g = $("invGenerate");
+      if (!g) return;
+      b = document.createElement("span");
+      b.id = "invSelBadge"; b.className = "note";
+      b.style.cssText = "font-weight:700;padding:0 8px;white-space:nowrap";
+      g.parentNode.insertBefore(b, g.parentNode.firstChild);
+    }
+    b.textContent = n ? "المحدَّد: " + n.toLocaleString("ar-EG") + " فاتورة" : "لم تُحدَّد فواتير";
+  }
+  $("invFamilyList").addEventListener("change", function (e) { if (e.target && e.target.classList && e.target.classList.contains("inv-chk")) updInvSel(); });
 
   function fmt(n) {
     if (n == null || n === "" || isNaN(Number(n))) return "—";
@@ -1158,6 +1205,7 @@
     var chks = document.querySelectorAll(".inv-chk");
     var anyUnchecked = Array.prototype.some.call(chks, function (c) { return !c.checked; });
     chks.forEach(function (c) { c.checked = anyUnchecked; });
+    updInvSel();
   });
 
   // تحديد المستحقين فقط
@@ -1168,6 +1216,7 @@
       var rem = Number(c.getAttribute("data-rem") || 0);
       c.checked = rem > 0;
     });
+    updInvSel();
   });
 
   // نافذة منبثقة تعرض الفواتير (تُنشأ عند أول فتح، وتنتقل إليها منطقة العرض invOutput)
@@ -1215,13 +1264,25 @@
   }
   function renderReady() {
     var host = $("invReady");
-    if (!host) { $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady"); }
+    if (!host) {
+      // على الشاشات العريضة تصير الفواتير الجاهزة عمودًا جانبيًا على يسار الصفحة، وعلى الجوال بطاقة عادية
+      if (!document.getElementById("readyCss")) {
+        var st = document.createElement("style"); st.id = "readyCss";
+        st.textContent = "#invReady .inv-family-row{flex-wrap:wrap}#invReady .inv-rem{margin-inline-start:0}#invReady .actions{margin-top:8px}" +
+          "@media (min-width:1100px){#aInvoices:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}" +
+          "#aInvoices>#invReady{grid-column:2;grid-row:1/span 3;position:sticky;top:10px;max-height:calc(100vh - 20px);overflow:auto;margin-bottom:0}" +
+          "#aInvoices>#invOutput,#aInvoices>section.card:not(#invReady){grid-column:1}}" +
+          "@media (max-width:1099px){#invReady{max-height:45vh;overflow:auto}}";
+        document.head.appendChild(st);
+      }
+      $("aInvoices").insertAdjacentHTML("afterbegin", '<section class="card" id="invReady" hidden></section>'); host = $("invReady");
+    }
     var tb = document.querySelector('[data-atab="invoices"]');
     if (tb) tb.textContent = "الفواتير" + (READY.length ? " (" + READY.length + ")" : "");
     host.hidden = !READY.length;
     if (!READY.length) { host.innerHTML = ""; return; }
     host.innerHTML = "<h2>فواتير جاهزة للإرسال (" + READY.length + ")</h2>" +
-      '<div class="note">سُجّلت تلقائيًا عند انتهاء مجالس الأسرة أو بعد انتهاء الشهر. اضغط «تحديدها» لتظهر محدَّدة في القائمة أدناه، ثم اعرضها أو حمّلها صورًا.</div>' +
+      '<div class="note">سُجّلت تلقائيًا عند انتهاء مجالس الأسرة أو بعد انتهاء الشهر. اضغط «تحديدها» لتظهر محدَّدة في القائمة، ثم اعرضها أو حمّلها صورًا.</div>' +
       READY.map(function (x) {
         return '<div class="inv-family-row"><span class="inv-fname">' + esc(x.name) + '</span><span class="note">' + esc(x.reason) + " — " + esc(x.month) + '</span><span class="inv-rem">' +
           (x.due > 0 ? "المطلوب " + fmt(x.due) + " " + esc(x.currency || "ج") : "لا مبلغ مستحق") + "</span></div>";
@@ -1234,6 +1295,7 @@
       invOnlyCodes = codes.map(String);
       loadInvoices(true).then(function () {
         document.querySelectorAll(".inv-chk").forEach(function (c) { c.checked = true; });
+        updInvSel();
         $("invFamilyList").scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
@@ -1295,6 +1357,9 @@
     var discRow = sm.discount && sm.discount > 0
       ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
       : "";
+    var adjRow = sm.adjust
+      ? '<div class="isum-row muted"><span>تعديل</span><span class="inum-val">' + (sm.adjust < 0 ? "−" : "+") + fmt(Math.abs(sm.adjust)) + " " + cur + '</span></div>'
+      : "";
     var paidRow = sm.paid > 0
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
@@ -1328,6 +1393,7 @@
           arrRow +
           discRow +
           paidRow +
+          adjRow +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
