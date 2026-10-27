@@ -1388,12 +1388,8 @@
         '</table>' +
         // ملخص
         '<div class="inv-summary-box">' +
-          '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.total) + " " + cur + '</span></div>' +
-          prevRow +
-          arrRow +
-          discRow +
-          paidRow +
-          adjRow +
+          '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.manual ? sm.due : sm.total) + " " + cur + '</span></div>' +
+          (sm.manual ? "" : prevRow + arrRow + discRow + paidRow + adjRow) +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
