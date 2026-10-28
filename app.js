@@ -1808,6 +1808,84 @@
     $("zcOut").innerHTML = h; $("zcOut").hidden = false;
   }
 
+  /* ---------- تقرير التحصيل داخل تبويب «المالية» (قراءة فقط) ---------- */
+  var CR = null;
+  (function buildCollect() {
+    var host = document.querySelector('[data-sec="money"]');
+    if (!host) return;
+    host.insertAdjacentHTML("beforeend",
+      '<section class="card" id="crCard"><div class="min-row" style="justify-content:space-between"><h2 style="margin:0">الأسر المتأخرة في السداد</h2>' +
+      '<button type="button" class="ghost small" id="crLoad">عرض التقرير</button></div>' +
+      '<div class="note">قائمة الأسر التي بقي عليها مبلغ في الشهر المالي الحالي، مرتبةً من الأكبر، مع آخر دفعة لكل أسرة. للقراءة فقط.</div>' +
+      '<div id="crBody"></div></section>');
+    $("crLoad").addEventListener("click", loadCollect);
+    $("crBody").addEventListener("click", function (e) {
+      var w = e.target.closest("[data-crwa]");
+      if (w) { var f = CR.late[Number(w.getAttribute("data-crwa"))]; if (f) window.open(crWaUrl(f), "_blank"); return; }
+      var c = e.target.closest("[data-crcopy]");
+      if (c) crCopy(CR.late[Number(c.getAttribute("data-crcopy"))], c);
+    });
+  })();
+  function crMsg(f) {
+    var cur = f.usd ? "دولار" : "جنيه";
+    return "السلام عليكم ورحمة الله،\nنذكّركم بأن المتبقي من فاتورة غراس الأدب لشهر " + CR.month + " هو " + numf(f.remaining, 2) + " " + cur +
+      (f.paid > 0 ? "، علمًا أنكم سدّدتم " + numf(f.paid, 2) + " " + cur + " منها" : "") +
+      ".\n\nطرق الدفع (باسم عمر شرف):\n- إنستاباي: " + INSTAPAY_URL + "\n- فودافون كاش: " + VODAFONE_NUM + "\n\nجزاكم الله خيرًا.";
+  }
+  function crWaUrl(f) { return "https://wa.me/" + f.phone + "?text=" + encodeURIComponent(crMsg(f)); }
+  function crCopy(f, btn) {
+    if (!f) return;
+    var old = btn.textContent;
+    function ok() { btn.textContent = "✓ نُسخت"; setTimeout(function () { btn.textContent = old; }, 2000); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(crMsg(f)).then(ok, function () { window.prompt("انسخ الرسالة:", crMsg(f)); });
+    else window.prompt("انسخ الرسالة:", crMsg(f));
+  }
+  function loadCollect() {
+    $("crBody").innerHTML = '<div class="loading">جارٍ قراءة الملخص وسجل المدفوعات…</div>';
+    $("crLoad").disabled = true;
+    api("collectReport", {}).then(function (r) { CR = r; renderCollect(); })
+      .catch(function (e) { $("crBody").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; })
+      .then(function () { $("crLoad").disabled = false; $("crLoad").textContent = "تحديث التقرير"; });
+  }
+  function crDays(f) {
+    var n = f.daysSince;
+    if (n === null) return "لا توجد دفعة مسجَّلة لها";
+    if (n === 0) return "آخر دفعة اليوم";
+    if (n === 1) return "آخر دفعة أمس";
+    if (n === 2) return "آخر دفعة منذ يومين";
+    return "آخر دفعة منذ " + n + (n <= 10 ? " أيام" : " يومًا");
+  }
+  function renderCollect() {
+    var r = CR, h = "";
+    if (!r.late.length) h += '<div class="note">✓ لا توجد أسر متأخرة في ' + esc(r.month) + ".</div>";
+    else {
+      var te = 0, tu = 0;
+      r.late.forEach(function (f) { if (f.usd) tu += f.remaining; else te += f.remaining; });
+      h += '<div class="note"><b>' + r.late.length + " أسرة</b> — إجمالي المتبقي: " + money(te) + (tu ? " + " + money(tu, true) : "") + "</div>";
+      h += r.late.map(function (f, i) {
+        var phone = f.phone ? "" : " disabled";
+        return '<div class="inv-family-row" style="cursor:default"><span class="inv-fname"><b>' + esc(f.name) + "</b> <small>" + esc(f.id) + "</small><br><small>" +
+          (f.paid > 0 ? "دفعت " + money(f.paid, f.usd) + " من " + money(f.invoice + f.previous, f.usd) : "الفاتورة " + money(f.invoice + f.previous, f.usd)) +
+          " — " + crDays(f) + (f.lastDate ? " (" + esc(fmtDate(f.lastDate)) + ")" : "") + '</small></span><span class="inv-rem">' + money(f.remaining, f.usd) + "</span>" +
+          '<span class="min-row"><button type="button" class="ghost small" data-crwa="' + i + '"' + phone + '>واتساب</button>' +
+          '<button type="button" class="ghost small" data-crcopy="' + i + '">نسخ الرسالة</button></span></div>';
+      }).join("");
+    }
+    var hl = r.health, bad = hl.unknown.length + hl.duplicates.length + hl.future.length;
+    h += '<h2 style="margin-top:18px">فحص سجل المدفوعات</h2>';
+    if (!bad) h += '<div class="note">✓ لا توجد مشكلات ظاهرة في ' + numf(r.payments) + " دفعة: كل دفعة لها أسرة معروفة، ولا تكرار في اليوم نفسه، ولا تواريخ مستقبلية.</div>";
+    else {
+      h += hl.unknown.length ? '<div class="confirm"><b>دفعات لا تُعرف أسرتها (' + hl.unknown.length + ")</b> — الاسم لا يطابق أي أسرة في الملخص، فلا تُحسب لأحد:" +
+        hl.unknown.map(function (x) { return "<br>الصف " + x.row + ": " + esc(x.name || "—") + " — " + numf(x.amount, 2) + " — " + esc(x.month); }).join("") + "</div>" : "";
+      h += hl.duplicates.length ? '<div class="confirm" style="margin-top:8px"><b>دفعات متطابقة في اليوم نفسه (' + hl.duplicates.length + ")</b> — الأسرة والمبلغ والشهر والتاريخ نفسها، فقد تكون مكررة:" +
+        hl.duplicates.map(function (x) { return "<br>الصفان " + x.firstRow + " و" + x.row + ": " + esc(x.name) + " — " + numf(x.amount, 2) + " — " + esc(x.month) + " — " + esc(fmtDate(x.date)); }).join("") + "</div>" : "";
+      h += hl.future.length ? '<div class="confirm" style="margin-top:8px"><b>دفعات بتاريخ لم يأتِ بعد (' + hl.future.length + ")</b>:" +
+        hl.future.map(function (x) { return "<br>الصف " + x.row + ": " + esc(x.name) + " — " + numf(x.amount, 2) + " — " + esc(fmtDate(x.date)); }).join("") + "</div>" : "";
+      h += '<div class="note">قد يكون التطابق مقصودًا (دفعتان بمبلغ واحد). لا يُحذف شيء تلقائيًا، وراجع الصفوف المذكورة في «سجل المدفوعات».</div>';
+    }
+    $("crBody").innerHTML = h;
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
@@ -2374,42 +2452,50 @@
     '</div>';
   }
 
-  // نسخ الصورة تلقائياً للحافظة + فتح محادثة الواتساب
+  // إرسال الفاتورة بالواتساب: على الموبايل تُشارَك الصورة مع النص عبر قائمة المشاركة،
+  // وعلى الحاسوب تُنسخ الصورة للحافظة ثم تُفتح المحادثة لتلصقها فيها.
   window.copyAndSendWa = async function (idx, btn) {
     var inv = currentInvoicesLoaded[idx];
     if (!inv) return;
     var card = $("invCard_" + idx);
     var oldText = btn.innerHTML;
-    btn.innerHTML = "⏳ جاري نسخ الصورة…";
-
+    var sm = inv.summary || {};
+    var waMsg = "السلام عليكم ورحمة الله،\nمرفق فاتورة غراس الأدب لشهر " + (inv.month || "") + ".\nالمطلوب دفعه: " + fmt(Math.max(sm.due, 0)) + " " + (inv.currency || "جنيه") +
+      "\n\nطرق الدفع (باسم عمر شرف):\n- إنستاباي: " + INSTAPAY_URL + "\n- فودافون كاش: " + VODAFONE_NUM;
+    var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
+    function done(txt) { btn.innerHTML = txt; setTimeout(function () { btn.innerHTML = oldText; }, 4500); }
+    if (typeof html2canvas === "undefined") { window.open(waUrl, "_blank"); return; }
+    btn.innerHTML = "⏳ جاري تجهيز الصورة…";
     try {
-      if (typeof html2canvas !== "undefined") {
-        var canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-        canvas.toBlob(async function (blob) {
-          if (navigator.clipboard && window.ClipboardItem) {
-            try {
-              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-            } catch (err) { console.log("Clipboard write failed", err); }
-          }
-
-          var sm = inv.summary || {};
-          var waMsg = "السلام عليكم ورحمة الله،\nمرفق فاتورة غراس الأدب لشهر " + (inv.month || "") + ".\nالمطلوب دفعه: " + fmt(Math.max(sm.due, 0)) + " " + (inv.currency || "جنيه") +
-            "\n\nطرق الدفع (باسم عمر شرف):\n- إنستاباي: " + INSTAPAY_URL + "\n- فودافون كاش: " + VODAFONE_NUM;
-          var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
-          window.open(waUrl, "_blank");
-
-          btn.innerHTML = "✅ تم نسخ الصورة! الصقها (Ctrl+V) في الشات";
-          setTimeout(function () { btn.innerHTML = oldText; }, 3500);
-        });
-      } else {
-        var sm = inv.summary || {};
-        var waMsg = "السلام عليكم ورحمة الله،\nمرفق فاتورة غراس الأدب لشهر " + (inv.month || "") + ".\nالمطلوب دفعه: " + fmt(Math.max(sm.due, 0)) + " " + (inv.currency || "جنيه");
-        var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
-        window.open(waUrl, "_blank");
-        btn.innerHTML = oldText;
+      var canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      var blob = await new Promise(function (res) { canvas.toBlob(res, "image/png"); });
+      if (!blob) throw new Error("تعذّر إنشاء الصورة");
+      var file = new File([blob], "فاتورة - " + inv.name + " - " + (inv.month || "") + ".png", { type: "image/png" });
+      var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      // الموبايل: قائمة المشاركة ترسل الصورة والنص معًا (الرابط لا يقدر على إرفاق صورة)
+      if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text: waMsg });
+          return done("✅ تمت المشاركة");
+        } catch (err) {
+          if (err && err.name === "AbortError") return done(oldText);   // أغلق المستخدم القائمة
+        }
       }
+      // الحاسوب: نسخ الصورة للحافظة
+      var copied = false;
+      if (navigator.clipboard && window.ClipboardItem) {
+        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); copied = true; } catch (err) { copied = false; }
+      }
+      if (copied) {
+        window.open(waUrl, "_blank");
+        return done("✅ نُسخت الصورة: الصقها (Ctrl+V) في المحادثة");
+      }
+      // لم تنجح المشاركة ولا النسخ: تُحفظ الصورة وتُفتح المحادثة بالنص، وتُرفق الصورة يدويًا
+      if (typeof saveAs !== "undefined") saveAs(blob, file.name);
+      window.open(waUrl, "_blank");
+      done("⚠ لم تُنسخ الصورة، فحُفظت في جهازك. أرفقها من المعرض");
     } catch (e) {
-      alert("تعذر نسخ الصورة: " + e.message);
+      alert("تعذّر تجهيز الصورة: " + e.message);
       btn.innerHTML = oldText;
     }
   };

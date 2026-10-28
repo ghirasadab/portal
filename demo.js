@@ -65,6 +65,11 @@
           if (p.action === "evalTeacherInfo") return ok({ ok: true, groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
           if (p.action === "evalRegister") return ok({ ok: true, code: "ط.9100", familyId: "س.0002", existed: false, filled: [], message: "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" });
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
+          if (p.action === "collectReport") return ok({ ok: true, month: DATA.month, today: key(today), payments: 280,
+            late: [{ id: "س.0001", name: "أ. ولي أمر تجريبي", invoice: 600, paid: 0, remaining: 600, previous: 0, usd: false, phone: "201000000001", lastDate: "", lastAmount: 0, daysSince: null },
+              { id: "س.0002", name: "أ. أسرة تجريبية", invoice: 900, paid: 400, remaining: 550, previous: 50, usd: false, phone: "201000000002", lastDate: "2026-10-05", lastAmount: 400, daysSince: 23 },
+              { id: "س.0003", name: "أ. أسرة ثانية", invoice: 40, paid: 0, remaining: 40, previous: 0, usd: true, phone: "", lastDate: "2026-10-20", lastAmount: 25, daysSince: 8 }],
+            health: { unknown: [{ row: 12, name: "أ. اسم غير مطابق", amount: 500, month: DATA.month }], duplicates: [{ row: 301, firstRow: 300, name: "أ. أسرة تجريبية", amount: 500, month: DATA.month, date: key(today) }], future: [] } });
           if (p.action === "stCall") {
             var a = p.arg || {};
             if (p.fn === "getTeacherStatusData") return ok({ ok: true, result: { month: DATA.month, teachers: [{ name: "أ. معلم تجريبي", state: "active", students: ["طالب تجريبي أول"] }, { name: "أ. معلمة تجريبية", state: "leave", students: ["طالبة أولى", "طالبة ثانية"] }] } });
