@@ -2444,7 +2444,7 @@
       '<div class="inv-card-foot">' +
         '<span class="inv-foot-note">جزاكم الله خيراً على ثقتكم</span>' +
         '<div class="inv-foot-actions">' +
-          '<button type="button" class="wa-inv-btn" onclick="copyAndSendWa(' + idx + ', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.828L0 24l6.336-1.498A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.015-1.378l-.36-.213-3.732.882.913-3.636-.234-.373A9.818 9.818 0 1112 21.818z"/></svg> نسخ وإرسال واتساب (Ctrl+V)</button>' +
+          '<button type="button" class="wa-inv-btn" onclick="copyAndSendWa(' + idx + ', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.828L0 24l6.336-1.498A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.015-1.378l-.36-.213-3.732.882.913-3.636-.234-.373A9.818 9.818 0 1112 21.818z"/></svg> نسخ وإرسال واتساب</button>' +
           '<button type="button" class="inv-btn-img" onclick="downloadCardImg(' + idx + ', this)">🖼️ حفظ صورة</button>' +
           '<button type="button" class="inv-print-btn" onclick="printInvCard(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg> طباعة</button>' +
         '</div>' +
@@ -2452,8 +2452,8 @@
     '</div>';
   }
 
-  // إرسال الفاتورة بالواتساب: على الموبايل تُشارَك الصورة مع النص عبر قائمة المشاركة،
-  // وعلى الحاسوب تُنسخ الصورة للحافظة ثم تُفتح المحادثة لتلصقها فيها.
+  // إرسال الفاتورة بالواتساب: تُنسخ الصورة للحافظة (حاسوبًا وموبايلًا) ثم تُفتح محادثة الأسرة لتلصقها،
+  // وإن منع المتصفح النسخ فقائمة المشاركة ثم حفظ الصورة.
   window.copyAndSendWa = async function (idx, btn) {
     var inv = currentInvoicesLoaded[idx];
     if (!inv) return;
@@ -2464,35 +2464,37 @@
       "\n\nطرق الدفع (باسم عمر شرف):\n- إنستاباي: " + INSTAPAY_URL + "\n- فودافون كاش: " + VODAFONE_NUM;
     var waUrl = "https://wa.me/" + String(inv.waPhone || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(waMsg);
     function done(txt) { btn.innerHTML = txt; setTimeout(function () { btn.innerHTML = oldText; }, 4500); }
-    if (typeof html2canvas === "undefined") { window.open(waUrl, "_blank"); return; }
+    function openWa() { var w = window.open(waUrl, "_blank"); if (!w) location.href = waUrl; }
+    if (typeof html2canvas === "undefined") { openWa(); return; }
     btn.innerHTML = "⏳ جاري تجهيز الصورة…";
+    // الصورة تُسلَّم للحافظة كوعد (Promise) داخل نفس نقرة المستخدم، فيقبلها سفاري وكروم على الموبايل أيضًا
+    var blobP = html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" }).then(function (canvas) {
+      return new Promise(function (res, rej) { canvas.toBlob(function (b) { b ? res(b) : rej(new Error("تعذّر إنشاء الصورة")); }, "image/png"); });
+    });
+    var clipP = null;
+    if (navigator.clipboard && window.ClipboardItem) {
+      try { clipP = navigator.clipboard.write([new ClipboardItem({ "image/png": blobP })]); } catch (err) { clipP = null; }
+    }
     try {
-      var canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-      var blob = await new Promise(function (res) { canvas.toBlob(res, "image/png"); });
-      if (!blob) throw new Error("تعذّر إنشاء الصورة");
+      var blob = await blobP;
       var file = new File([blob], "فاتورة - " + inv.name + " - " + (inv.month || "") + ".png", { type: "image/png" });
-      var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-      // الموبايل: قائمة المشاركة ترسل الصورة والنص معًا (الرابط لا يقدر على إرفاق صورة)
-      if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
+      var copied = false;
+      if (clipP) { try { await clipP; copied = true; } catch (err) { copied = false; } }
+      if (copied) {
+        openWa();
+        return done("✅ نُسخت الصورة: الصقها في المحادثة");
+      }
+      // لم ينجح النسخ: على الموبايل قائمة المشاركة (صورة ونص)، وإلا تُحفظ الصورة وتُفتح المحادثة
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file], text: waMsg });
           return done("✅ تمت المشاركة");
         } catch (err) {
-          if (err && err.name === "AbortError") return done(oldText);   // أغلق المستخدم القائمة
+          if (err && err.name === "AbortError") return done(oldText);
         }
       }
-      // الحاسوب: نسخ الصورة للحافظة
-      var copied = false;
-      if (navigator.clipboard && window.ClipboardItem) {
-        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); copied = true; } catch (err) { copied = false; }
-      }
-      if (copied) {
-        window.open(waUrl, "_blank");
-        return done("✅ نُسخت الصورة: الصقها (Ctrl+V) في المحادثة");
-      }
-      // لم تنجح المشاركة ولا النسخ: تُحفظ الصورة وتُفتح المحادثة بالنص، وتُرفق الصورة يدويًا
       if (typeof saveAs !== "undefined") saveAs(blob, file.name);
-      window.open(waUrl, "_blank");
+      openWa();
       done("⚠ لم تُنسخ الصورة، فحُفظت في جهازك. أرفقها من المعرض");
     } catch (e) {
       alert("تعذّر تجهيز الصورة: " + e.message);
