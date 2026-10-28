@@ -65,6 +65,15 @@
           if (p.action === "evalTeacherInfo") return ok({ ok: true, groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
           if (p.action === "evalRegister") return ok({ ok: true, code: "ط.9100", familyId: "س.0002", existed: false, filled: [], message: "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" });
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
+          if (p.action === "stuData") return ok({ ok: true, month: DATA.month, teachers: ["أ. معلم تجريبي", "أ. معلمة تجريبية"],
+            families: [{ id: "س.0001", name: "ولي أمر تجريبي", price: 125 }, { id: "س.0002", name: "أسرة تجريبية", price: 100 }],
+            students: [{ code: "ط.9001", name: "طالب تجريبي أول", parent: "ولي أمر تجريبي", fid: "س.0001", price: 125, teachers: "أ. معلم تجريبي", active: true },
+              { code: "ط.9002", name: "طالبة أولى", parent: "أسرة تجريبية", fid: "س.0002", price: 100, teachers: "أ. معلمة تجريبية", active: true }] });
+          if (p.action === "stuTeacherInfo") return ok({ ok: true, hasStudent: p.code === "ط.9001" && p.teacher === "أ. معلم تجريبي", groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
+          if (p.action === "stuRegister") return ok({ ok: true, reg: { code: "ط.9100", name: p.name, parent: p.newFamily ? "أ. " + p.parent : p.parent, familyId: p.newFamily ? "س.0300" : "س.0002", price: p.price,
+            firstMonth: p.startDate && p.firstDays ? { applies: true, sessions: 3, monthly: Number(p["package"]), total: 3 * Number(p.price) } : null, evalFee: p.evalFee ? Number(p.evalFee) : 0 },
+            message: p.teacher ? "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" : "" });
+          if (p.action === "stuAdd" || p.action === "stuMove") return ok({ ok: true, message: "✓ تم: " + p.code + (p.action === "stuMove" ? " نُقل من " + p.fromTeacher : " أُضيف") + " إلى " + p.teacher });
           if (p.action === "payInit") return ok({ ok: true, currentMonth: DATA.month, firstMonthNote: false, months: [DATA.month], methods: ["فودافون كاش", "إنستاباي", "تحويل بنكي", "نقدًا"],
             families: [{ id: "س.0001", name: "ولي أمر تجريبي", kids: "طالب تجريبي أول" }, { id: "س.0002", name: "أسرة تجريبية", kids: "طالبة أولى، طالبة ثانية" }, { id: "س.0003", name: "أسرة ثانية", kids: "طالبة ثالثة" }] });
           if (p.action === "payDue") return ok({ ok: true, list: PAYS.fams.filter(function (f) { return f.remaining > 0; }).map(function (f) { return { id: f.id, name: f.name, invoice: f.invoice, paid: f.paid, remaining: f.remaining, previous: f.previous, status: f.status, none: f.paid === 0, usd: f.usd }; }) });

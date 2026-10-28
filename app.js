@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = action === "evalRegister" || action === "paySave";   // تسجيل الطالب المقيَّم أو الدفعة قد يستغرق دقيقة
+    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -33,7 +33,7 @@
         return res;
       }, function (e) {
         clearTimeout(timer);
-        if (e && e.name === "AbortError") throw new Error(isLong ? "لم يصل الرد بعد. قد يكون التسجيل قد تم، فحدّث قائمة التقييمات قبل إعادة المحاولة." : "لم يصل رد من الخادم. تحقق من الاتصال وأعد المحاولة.");
+        if (e && e.name === "AbortError") throw new Error(isLong ? "لم يصل الرد بعد. قد تكون العملية قد تمّت، فتحقق (من قائمة التقييمات أو جدول المعلم) قبل إعادة المحاولة." : "لم يصل رد من الخادم. تحقق من الاتصال وأعد المحاولة.");
         if (e && /fetch|network|json/i.test(String(e.message || e))) throw new Error("تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.");
         throw e;
       });
@@ -1069,15 +1069,320 @@
     });
   }
 
+  /* ---------- طالب جديد، وإضافة طالب إلى معلم أو نقله (منقولة من صفحة الإدارة) ---------- */
+  var STU = null, stBusy = false, stArmed = "", stRegTok = "", stRegKey = "", stFam = null, stPick = null, stInfo = null, stPrevT = null;
+  function stTok() { return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10); }
+  function stOpts(sel) { return '<option value="">— اختر —</option>' + (STU ? STU.teachers.map(function (n) { return "<option" + (n === sel ? " selected" : "") + ">" + esc(n) + "</option>"; }).join("") : ""); }
+  (function buildStuTab() {
+    var tabs = document.querySelector(".admin-tabs"), ev = tabs && tabs.querySelector('[data-atab="evals"]');
+    if (!tabs || !ev) return;
+    ev.insertAdjacentHTML("afterend", '<button type="button" class="tab" data-atab="students">تسجيل ونقل</button>');
+    var unit = function (p) {
+      return '<div class="field"><label for="' + p + 'Teacher" id="' + p + 'TeacherLbl">المعلم</label><select id="' + p + 'Teacher" class="date-sel" style="width:100%"></select></div>' +
+        '<div class="confirm" id="' + p + 'Has" hidden>الطالب مسجَّل بالفعل لدى هذا المعلم في الشهر الحالي.</div>' +
+        '<div class="field"><label for="' + p + 'Mode">طريقة الإضافة</label><select id="' + p + 'Mode" class="date-sel" style="width:100%"><option value="single">مجلس فردي</option><option value="newgroup">مجموعة جديدة</option>' +
+        '<option value="join">إلى مجموعة موجودة</option><option value="pair">مع طالب فردي ليصيرا مجموعة</option></select>' +
+        '<select id="' + p + 'Target" class="date-sel" style="width:100%;margin-top:6px" hidden></select></div>' +
+        '<div id="' + p + 'NewUnit"><div class="row2"><div class="field"><label for="' + p + 'Cat">فئة المجلس</label><input id="' + p + 'Cat" placeholder="مجلس فردي"></div>' +
+        '<div class="field"><label for="' + p + 'Rate">أجر الساعة للمعلم</label><input id="' + p + 'Rate" inputmode="decimal" value="70"></div></div>' +
+        '<div class="field" id="' + p + 'DaysWrap"><label for="' + p + 'Days">المواعيد (اختياري)</label><input id="' + p + 'Days" placeholder="مثال: الأحد والأربعاء 5:00م"></div></div>';
+    };
+    $("adminView").insertAdjacentHTML("beforeend",
+      '<style>#aStu .row2{grid-template-columns:repeat(2,minmax(0,1fr))}#aStu input:not([type=checkbox]),#aStu select{width:100%;box-sizing:border-box}</style>' +
+      '<div id="aStu" hidden><section class="card"><div class="seg" id="stSeg"><button type="button" class="on" data-stm="new">🆕 طالب جديد</button><button type="button" data-stm="add">➕ إضافة إلى معلم</button><button type="button" data-stm="move">🔁 نقل إلى معلم آخر</button></div></section>' +
+      '<div id="stLoading" class="loading">جارٍ تحميل الطلاب والأسر…</div>' +
+      // طالب جديد
+      '<section class="card" id="stNew" hidden><h2>تسجيل طالب جديد</h2>' +
+      '<div class="row2"><div class="field"><label for="snName">اسم الطالب</label><input id="snName" placeholder="مثال: يوسف أحمد"></div>' +
+      '<div class="field"><label for="snAge">العمر (اختياري)</label><input id="snAge" placeholder="مثال: 9 سنوات"></div></div>' +
+      '<div class="field"><label>الأسرة</label><div class="seg" id="snFamSeg"><button type="button" class="on" data-fk="old">أسرة موجودة</button><button type="button" data-fk="new">أسرة جديدة</button></div></div>' +
+      '<div id="snFamOld"><input id="snFamQ" type="search" autocomplete="off" placeholder="ابحث باسم ولي الأمر أو المعرّف أو اسم طالب" style="width:100%;margin-top:8px"><div id="snFamRes"></div><div class="note" id="snFamPicked" hidden></div></div>' +
+      '<div id="snFamNew" hidden><input id="snParent" placeholder="اسم ولي الأمر كما سيُكتب في الشيت" style="width:100%;margin-top:8px"><div class="note">يُولَّد المعرّف (س.) تلقائيًا، ويُضاف «أ. » قبل الاسم.</div></div>' +
+      '<div class="row2"><div class="field"><label for="snPkg">الباقة الشهرية</label><input id="snPkg" inputmode="decimal" placeholder="عدد المجالس، مثال: 8"></div>' +
+      '<div class="field"><label for="snPrice">سعر المجلس</label><input id="snPrice" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
+      '<div class="row2"><div class="field"><label for="snStart">تاريخ أول مجلس</label><input id="snStart" type="date"></div>' +
+      '<div class="field"><label for="snPDays">أيام الدرس</label><input id="snPDays" placeholder="مثال: الأحد والأربعاء"></div></div>' +
+      '<div class="field"><label for="snFee">رسوم التقييم المدفوعة (اختياري)</label><input id="snFee" inputmode="decimal" placeholder="مثال: 50"></div>' +
+      '<div class="note" id="snPrev">اكتب الباقة وتاريخ أول مجلس وأيام الدرس، فيُحسب عدد مجالس هذا الشهر وفاتورته. اترك التاريخ فارغًا لتسجيل الباقة كاملة.</div>' +
+      '<h2 style="margin-top:16px">إضافته إلى معلم (اختياري)</h2><div class="note">اترك المعلم فارغًا لتسجيله في «الأسر والطلاب» فقط، ثم أضِفه لاحقًا من «إضافة إلى معلم».</div>' + unit("sn") +
+      '<div class="confirm" id="snConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="snSave">تسجيل الطالب</button></div></section>' +
+      '<section class="card" id="stDone" hidden><h2>✓ تم التسجيل</h2><div id="stDoneTxt"></div>' +
+      '<div class="actions min-row" style="flex-wrap:wrap"><button type="button" class="primary small" id="stDoneAdd" hidden>➕ إضافته إلى معلم الآن</button><button type="button" class="ghost small" id="stDoneAgain">تسجيل طالب آخر</button></div></section>' +
+      // إضافة أو نقل
+      '<section class="card" id="stUnit" hidden><h2 id="stUnitHead">إضافة طالب إلى معلم</h2>' +
+      '<div class="field"><label for="suQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="suQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين" style="width:100%"></div>' +
+      '<div id="suRes"></div><div class="note" id="suPicked" hidden></div>' +
+      '<div class="field" id="suFromWrap" hidden><label for="suFrom">من معلم</label><select id="suFrom" class="date-sel" style="width:100%"></select></div>' + unit("su") +
+      '<div class="confirm" id="suConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="suSave">إضافة</button></div>' +
+      '<div class="note" id="suFoot"></div></section></div>');
+
+    $("stSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-stm]"); if (b && !stBusy) stMode(b.getAttribute("data-stm")); });
+    $("snFamSeg").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-fk]"); if (!b) return;
+      $("snFamSeg").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $("snFamOld").hidden = b.getAttribute("data-fk") !== "old"; $("snFamNew").hidden = b.getAttribute("data-fk") !== "new";
+      stDisarm();
+    });
+    $("snFamQ").addEventListener("input", function () {
+      var q = norm($("snFamQ").value), box = $("snFamRes");
+      if (!q || !STU) { box.innerHTML = ""; return; }
+      var w = q.split(" ");
+      var hits = STU.families.filter(function (f) { return w.every(function (x) { return f._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (f) {
+        return '<div class="inv-family-row" data-sf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد أسرة بهذا الاسم. اختر «أسرة جديدة».</div>';
+    });
+    $("snFamRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-sf]"); if (!r) return;
+      stFam = STU.families.filter(function (f) { return f.id === r.getAttribute("data-sf"); })[0];
+      $("snFamRes").innerHTML = ""; $("snFamQ").value = "";
+      $("snFamPicked").innerHTML = "✓ <b>" + esc(stFam.name) + "</b> — " + esc(stFam.id) + (stFam.kids ? "<br>" + esc(stFam.kids) : "");
+      $("snFamPicked").hidden = false;
+      if ($("snPrice").value === "" && stFam.price !== "" && stFam.price !== undefined && stFam.price !== null) $("snPrice").value = stFam.price;
+      stDisarm(); stPreview();
+    });
+    ["snPkg", "snPrice", "snStart", "snPDays"].forEach(function (k) { $(k).addEventListener("input", stPreview); $(k).addEventListener("change", stPreview); });
+    ["sn", "su"].forEach(function (p) {
+      $(p + "Teacher").addEventListener("change", function () { stLoadInfo(p); stDisarm(); });
+      $(p + "Mode").addEventListener("change", function () {
+        var m = $(p + "Mode").value;
+        if (m === "single") { $(p + "Rate").value = 70; $(p + "Cat").placeholder = "مجلس فردي"; }
+        if (m === "newgroup" || m === "pair") { $(p + "Rate").value = 130; $(p + "Cat").placeholder = "مجموعة"; }
+        stModeUI(p); stDisarm();
+      });
+    });
+    $("aStu").addEventListener("input", function (e) { if (e.target.id !== "suQ" && e.target.id !== "snFamQ") stDisarm(); });
+    $("snSave").addEventListener("click", stRegister);
+    $("stDoneAgain").addEventListener("click", function () {
+      ["snName", "snAge", "snParent", "snPkg", "snPrice", "snPDays", "snFee", "snCat", "snDays"].forEach(function (k) { $(k).value = ""; });
+      $("snStart").value = (AD && AD.today) || ""; $("snTeacher").value = ""; $("snMode").value = "single"; $("snRate").value = 70;
+      stFam = null; $("snFamPicked").hidden = true; stInfo = null; stModeUI("sn");
+      $("stDone").hidden = true; $("stNew").hidden = false; $("snPrev").textContent = "اكتب الباقة وتاريخ أول مجلس وأيام الدرس، فيُحسب عدد مجالس هذا الشهر وفاتورته. اترك التاريخ فارغًا لتسجيل الباقة كاملة.";
+      $("snName").focus();
+    });
+    $("stDoneAdd").addEventListener("click", function () { var c = $("stDoneAdd").getAttribute("data-code"); stMode("add"); suPick(c); });
+    $("suQ").addEventListener("input", function () {
+      var q = norm($("suQ").value), box = $("suRes");
+      if (!q || !STU) { box.innerHTML = ""; return; }
+      var w = q.split(" ");
+      var hits = STU.students.filter(function (s) { return w.every(function (x) { return s._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (s) {
+        return '<div class="inv-family-row" data-sc="' + esc(s.code) + '"><span class="inv-fname"><b>' + esc(s.name) + "</b>" + (s.active === false ? " <small>(متوقف)</small>" : "") +
+          "<br><small>" + esc(s.code) + " — " + esc(s.parent) + (s.teachers ? " — لدى: " + esc(s.teachers) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد نتائج. إن كان طالبًا جديدًا فسجّله أولًا من «طالب جديد».</div>';
+    });
+    $("suRes").addEventListener("click", function (e) { var r = e.target.closest("[data-sc]"); if (r) suPick(r.getAttribute("data-sc")); });
+    $("suFrom").addEventListener("change", stDisarm);
+    $("suSave").addEventListener("click", suSave);
+  })();
+  function loadStu(force) {
+    if (STU && !force) { stShow(); return; }
+    $("stLoading").hidden = false; $("stLoading").textContent = "جارٍ تحميل الطلاب والأسر…";
+    api("stuData", {}).then(function (d) {
+      STU = d;
+      var kids = {};
+      d.students.forEach(function (s) { s._k = norm(s.code + " " + s.name + " " + s.parent); (kids[s.fid] = kids[s.fid] || []).push(s.name); });
+      d.families.forEach(function (f) { f.kids = (kids[f.id] || []).join("، "); f._k = norm(f.id + " " + f.name + " " + f.kids); });
+      ["snTeacher", "suTeacher", "suFrom"].forEach(function (k) { var v = $(k).value; $(k).innerHTML = stOpts(v); });
+      if (!$("snStart").value) $("snStart").value = (AD && AD.today) || "";
+      $("stLoading").hidden = true;
+      stShow();
+    }).catch(function (e) { $("stLoading").textContent = "⚠ " + e.message; });
+  }
+  var stCur = "new";
+  function stShow() {
+    $("stNew").hidden = stCur !== "new" || !$("stDone").hidden;
+    if (stCur !== "new") $("stDone").hidden = true;
+    $("stUnit").hidden = stCur === "new";
+  }
+  function stMode(m) {
+    stCur = m; clearMsg();
+    $("stSeg").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-stm") === m); });
+    if (m !== "new") {
+      var mv = m === "move";
+      $("stUnitHead").textContent = mv ? "نقل طالب إلى معلم آخر" : "إضافة طالب إلى معلم";
+      $("suFromWrap").hidden = !mv; $("suTeacherLbl").textContent = mv ? "إلى معلم" : "المعلم";
+      $("suFoot").textContent = mv
+        ? "يُضاف إلى المعلم الجديد فورًا، ويبقى في تبويب الشهر الحالي لدى المعلم السابق حفاظًا على المجالس المسجَّلة، ثم يُحذف من تبويب الشهر القادم."
+        : "يُضاف إلى تبويب الشهر الحالي، وإلى تبويب الشهر القادم إن كان قد أُنشئ.";
+      suPreFrom();
+    }
+    stDisarm();
+    if (STU) stShow();
+  }
+  function stModeUI(p) {
+    var m = $(p + "Mode").value, tg = $(p + "Target");
+    tg.hidden = !(m === "join" || m === "pair");
+    $(p + "NewUnit").hidden = m === "join";
+    $(p + "DaysWrap").hidden = m === "pair";
+    if (!tg.hidden) {
+      var info = p === "sn" ? stInfo : (stPick ? stPick._info : null);
+      var items = !info ? [] : m === "join" ? info.groups.map(function (g) { return [g.start, g.label]; }) : info.singles.map(function (x) { return [x.code, x.label]; });
+      tg.innerHTML = info ? (items.length ? items.map(function (i) { return '<option value="' + esc(i[0]) + '">' + esc(i[1]) + "</option>"; }).join("") : "<option value=''>لا يوجد</option>") : "<option value=''>اختر المعلم أولًا</option>";
+    }
+  }
+  function stLoadInfo(p) {
+    var t = $(p + "Teacher").value, code = p === "su" && stPick ? stPick.code : "";
+    $(p + "Has").hidden = true;
+    if (p === "sn") stInfo = null; else if (stPick) stPick._info = null;
+    stModeUI(p);
+    if (!t) return;
+    $(p + "Target").innerHTML = "<option value=''>جارٍ التحميل…</option>";
+    api("stuTeacherInfo", { teacher: t, code: code }).then(function (r) {
+      if ($(p + "Teacher").value !== t) return;
+      if (p === "sn") stInfo = r; else if (stPick) stPick._info = r;
+      $(p + "Has").hidden = !(p === "su" && r.hasStudent);
+      stModeUI(p);
+    }).catch(function (e) { $(p + "Target").innerHTML = ""; showMsg("⚠ " + e.message, false); });
+  }
+  function stDisarm() {
+    stArmed = "";
+    $("snConfirm").hidden = true; $("suConfirm").hidden = true;
+    if (!stBusy) {
+      $("snSave").textContent = "تسجيل الطالب"; $("snSave").classList.remove("confirming");
+      $("suSave").textContent = stCur === "move" ? "نقل" : "إضافة"; $("suSave").classList.remove("confirming");
+    }
+  }
+  function stArm(btn, box, key, text) {
+    if (stArmed === key) return true;
+    stArmed = key; $(box).textContent = text + " اضغط مرة أخرى للتأكيد."; $(box).hidden = false;
+    $(btn).textContent = "تأكيد"; $(btn).classList.add("confirming");
+    return false;
+  }
+  function stPreview() {
+    clearTimeout(stPrevT);
+    stPrevT = setTimeout(function () {
+      var pkg = digits($("snPkg").value), start = $("snStart").value, days = $("snPDays").value.trim(), box = $("snPrev");
+      if (pkg === "" || isNaN(Number(pkg))) { box.textContent = "اكتب الباقة الشهرية أولًا."; return; }
+      if (!start || !days) { box.textContent = "دون تاريخ بدء وأيام درس تُسجَّل الباقة كاملة (" + pkg + ")."; return; }
+      box.textContent = "جارٍ الحساب…";
+      api("evalPreview", { package: pkg, price: digits($("snPrice").value), startDate: start, firstDays: days })
+        .then(function (r) { box.textContent = r.message || ""; }).catch(function (e) { box.textContent = "⚠ " + e.message; });
+    }, 500);
+  }
+  function stUnitData(p) {
+    var m = $(p + "Mode").value, d = { teacher: $(p + "Teacher").value, mode: m, category: $(p + "Cat").value.trim(), rate: digits($(p + "Rate").value), days: $(p + "Days").value.trim() };
+    if (m === "join") d.groupStart = $(p + "Target").value;
+    if (m === "pair") d.pairCode = $(p + "Target").value;
+    return d;
+  }
+  function stUnitCheck(p, d) {
+    if (!d.teacher) return "اختر المعلم.";
+    if (d.mode === "join" && !d.groupStart) return "اختر المجموعة.";
+    if (d.mode === "pair" && !d.pairCode) return "اختر الطالب الفردي.";
+    if (d.mode !== "join" && (d.rate === "" || isNaN(Number(d.rate)))) return "اكتب أجر الساعة للمعلم (0 إن كان تطوّعًا).";
+    return "";
+  }
+  function stUnitTxt(p, d) {
+    return d.mode === "join" ? "ينضم إلى " + $(p + "Target").options[$(p + "Target").selectedIndex].text
+      : d.mode === "pair" ? "مع " + $(p + "Target").options[$(p + "Target").selectedIndex].text + " ليصيرا مجموعة"
+      : (d.mode === "newgroup" ? "مجموعة جديدة" : "مجلس فردي") + " بأجر " + d.rate + " للساعة";
+  }
+  function stRegister() {
+    if (stBusy || !STU) return;
+    clearMsg();
+    var isNew = !$("snFamNew").hidden, name = $("snName").value.trim();
+    var parent = isNew ? $("snParent").value.trim() : (stFam ? stFam.name : "");
+    var pkg = digits($("snPkg").value), price = digits($("snPrice").value), start = $("snStart").value, pdays = $("snPDays").value.trim(), fee = digits($("snFee").value);
+    if (!name) return showMsg("⚠ اكتب اسم الطالب.", false);
+    if (!parent) return showMsg(isNew ? "⚠ اكتب اسم ولي الأمر." : "⚠ اختر الأسرة من القائمة، أو اختر «أسرة جديدة».", false);
+    if (price === "" || isNaN(Number(price))) return showMsg("⚠ اكتب سعر المجلس (0 إن كان تطوّعًا).", false);
+    if (pkg !== "" && isNaN(Number(pkg))) return showMsg("⚠ يجب أن تكون الباقة رقمًا.", false);
+    if (pkg !== "" && start && !pdays) return showMsg("⚠ اكتب أيام الدرس لحساب مجالس هذا الشهر، أو أفرغ تاريخ أول مجلس لتسجيل الباقة كاملة.", false);
+    if (fee !== "" && (isNaN(Number(fee)) || Number(fee) < 0)) return showMsg("⚠ يجب أن تكون رسوم التقييم رقمًا.", false);
+    var u = stUnitData("sn");
+    if (u.teacher) { var bad = stUnitCheck("sn", u); if (bad) return showMsg("⚠ " + bad, false); }
+    var key = [name, $("snAge").value.trim(), parent, isNew, pkg, price, start, pdays, fee, JSON.stringify(u)].join("|");
+    if (!stArm("snSave", "snConfirm", key, "سيُسجَّل " + name + " لدى " + (isNew ? "أسرة جديدة: " : "") + parent + "، الباقة الشهرية " + (pkg || "—") + "، سعر المجلس " +
+      (Number(price) === 0 ? "0 (تطوّع)" : price) + (fee ? "، ورسوم التقييم المدفوعة " + fee + " تُضاف رصيدًا للأسرة" : "") +
+      (u.teacher ? "، ثم يُضاف إلى " + u.teacher + " (" + stUnitTxt("sn", u) + ")." : "، دون إضافته إلى معلم."))) return;
+    if (stRegKey !== key) { stRegKey = key; stRegTok = stTok(); }
+    var p = { name: name, age: $("snAge").value.trim(), parent: parent, newFamily: isNew, package: pkg, price: price, startDate: start, firstDays: pdays, evalFee: fee, regToken: stRegTok };
+    Object.keys(u).forEach(function (k) { p[k] = u[k]; });
+    stSend("stuRegister", p, "snSave", 1, function (r) {
+      stRegKey = "";
+      var g = r.reg, fm = g.firstMonth;
+      if (!STU.students.some(function (s) { return s.code === g.code; })) {
+        var s = { code: g.code, name: g.name, parent: g.parent, fid: g.familyId, price: g.price, teachers: r.message ? u.teacher : "", active: true };
+        s._k = norm(s.code + " " + s.name + " " + s.parent); STU.students.push(s);
+      }
+      if (!STU.families.some(function (f) { return f.id === g.familyId; })) {
+        var f = { id: g.familyId, name: g.parent, price: g.price, kids: g.name }; f._k = norm(f.id + " " + f.name + " " + f.kids); STU.families.push(f);
+      }
+      var h = "";
+      if (g.existed) h += '<div class="confirm">هذا الطالب مسجَّل من قبل، فلم يُكرَّر.' + (g.filled && g.filled.length ? "<br>✓ أُكملت بياناته الناقصة: " + esc(g.filled.join("، ")) : "") +
+        (g.diffs && g.diffs.length ? "<br>⚠ تختلف عمّا كتبته ولم تُغيَّر: " + esc(g.diffs.join("، ")) + "، فعدّلها من الشيت إن لزم." : "") + "</div>";
+      h += "<b>" + esc(g.name) + "</b><br>كود الطالب: <b>" + esc(g.code) + "</b><br>ولي الأمر: " + esc(g.parent) + " — <b>" + esc(g.familyId) + "</b>" +
+        (fm && fm.applies ? "<br>مجالس هذا الشهر: <b>" + esc(fm.sessions) + "</b> من " + esc(fm.monthly) + " (فاتورته " + esc(fm.total) + ")" + (fm.sessions < fm.monthly ? "، وتعود الباقة الشهرية كاملة بعد قفل الشهر." : "") : "") +
+        (g.evalFee ? "<br>رسوم التقييم: <b>" + esc(g.evalFee) + "</b> أُضيفت رصيدًا للأسرة." : "") + (g.evalFeeError ? "<br>⚠ " + esc(g.evalFeeError) : "");
+      if (r.message) h += '<div class="note" style="white-space:pre-line">' + esc(r.message) + "</div>";
+      if (r.addError) h += '<div class="confirm">⚠ سُجّل الطالب لكن لم يُضَف إلى ' + esc(u.teacher) + ": " + esc(r.addError) + "<br>اضغط «إضافته إلى معلم الآن» للمحاولة مرة أخرى.</div>";
+      $("stDoneTxt").innerHTML = h;
+      $("stDoneAdd").hidden = !!r.message; $("stDoneAdd").setAttribute("data-code", g.code);
+      $("stNew").hidden = true; $("stDone").hidden = false;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+  function suPick(code) {
+    stPick = STU.students.filter(function (s) { return s.code === code; })[0];
+    if (!stPick) return;
+    $("suRes").innerHTML = ""; $("suQ").value = "";
+    $("suPicked").innerHTML = "✓ <b>" + esc(stPick.name) + "</b> — " + esc(stPick.code) + "<br>ولي الأمر: " + esc(stPick.parent) + (stPick.teachers ? " — المعلمون الحاليون: " + esc(stPick.teachers) : "");
+    $("suPicked").hidden = false;
+    suPreFrom(); stLoadInfo("su"); stDisarm();
+  }
+  function suPreFrom() {
+    if (!stPick || stCur !== "move" || !STU) return;
+    var cur = STU.teachers.filter(function (t) { return String(stPick.teachers).indexOf(t) !== -1; });
+    if (cur.length === 1) $("suFrom").value = cur[0];
+  }
+  function suSave() {
+    if (stBusy || !STU) return;
+    clearMsg();
+    if (!stPick) return showMsg("⚠ اختر الطالب أولًا.", false);
+    var mv = stCur === "move", d = stUnitData("su"), bad = stUnitCheck("su", d);
+    if (bad) return showMsg("⚠ " + bad, false);
+    d.code = stPick.code;
+    if (mv) {
+      d.fromTeacher = $("suFrom").value;
+      if (!d.fromTeacher) return showMsg("⚠ اختر المعلم المنقول منه.", false);
+      if (d.fromTeacher === d.teacher) return showMsg("⚠ المعلم السابق والجديد هو المعلم نفسه.", false);
+    }
+    var key = JSON.stringify(d) + mv;
+    if (!stArm("suSave", "suConfirm", key, (mv ? "سيُنقل " + stPick.name + " من " + d.fromTeacher + " إلى " + d.teacher : "سيُضاف " + stPick.name + " إلى " + d.teacher) + " (" + stUnitTxt("su", d) + ").")) return;
+    var st = stPick;
+    stSend(mv ? "stuMove" : "stuAdd", d, "suSave", 1, function (r) {
+      var names = st.teachers ? String(st.teachers).split("، ") : [];
+      if (names.indexOf(d.teacher) === -1) names.push(d.teacher);
+      st.teachers = names.join("، ");
+      showMsg(r.message, true);
+      if (stPick === st) suPick(st.code);
+    });
+  }
+  function stSend(action, p, btn, attempt, done) {
+    stBusy = true; $(btn).disabled = true; $(btn).classList.remove("confirming");
+    $(btn).textContent = attempt > 1 ? "الشيت مشغول… جارٍ إعادة المحاولة (" + attempt + ")" : "جارٍ التنفيذ… قد يستغرق ذلك دقيقة";
+    api(action, p).then(function (r) {
+      stBusy = false; $(btn).disabled = false; stDisarm(); done(r);
+    }).catch(function (e) {
+      var m = String(e.message || e);
+      if (m.indexOf("BUSY:") === 0 && attempt < 4) { setTimeout(function () { stSend(action, p, btn, attempt + 1, done); }, 6000); return; }
+      stBusy = false; $(btn).disabled = false; stDisarm();
+      showMsg("⚠ " + (m.indexOf("BUSY:") === 0 ? m.slice(5).trim() : m), false);
+    });
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments";
+      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments" || t === "students";
       $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices"; $("aHol").hidden = t !== "holidays";
       if ($("aPay")) $("aPay").hidden = t !== "payments";
       if (t === "holidays") loadHolidays();
       if (t === "payments") loadPay();
+      if ($("aStu")) $("aStu").hidden = t !== "students";
+      if (t === "students") loadStu();
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
       if (t === "invoices") { loadInvoices(); loadReady(); }
