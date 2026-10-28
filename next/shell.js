@@ -6,7 +6,7 @@
   if (!AV || !tabs) return;
 
   // اسم الرابط المباشر ← اسم التبويب في البوابة
-  var ROUTES = { today: "today", stats: "stats", salaries: "pay", money: "money", evals: "evals", students: "students", archive: "arch", payments: "payments", invoices: "invoices", holidays: "holidays" };
+  var ROUTES = { today: "today", stats: "stats", salaries: "pay", money: "money", evals: "evals", students: "students", status: "status", archive: "arch", payments: "payments", invoices: "invoices", holidays: "holidays" };
   var NAME = {}; Object.keys(ROUTES).forEach(function (k) { NAME[ROUTES[k]] = k; });
 
   [["العمل اليومي", "today"], ["التقارير", "stats"], ["الطلاب", "evals"], ["المالية والإدارة", "invoices"]].forEach(function (g) {

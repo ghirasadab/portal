@@ -65,10 +65,19 @@
           if (p.action === "evalTeacherInfo") return ok({ ok: true, groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
           if (p.action === "evalRegister") return ok({ ok: true, code: "ط.9100", familyId: "س.0002", existed: false, filled: [], message: "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" });
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
+          if (p.action === "stCall") {
+            var a = p.arg || {};
+            if (p.fn === "getTeacherStatusData") return ok({ ok: true, result: { month: DATA.month, teachers: [{ name: "أ. معلم تجريبي", state: "active", students: ["طالب تجريبي أول"] }, { name: "أ. معلمة تجريبية", state: "leave", students: ["طالبة أولى", "طالبة ثانية"] }] } });
+            if (p.fn === "inspectStudent") return ok({ ok: true, result: { verdict: { level: "green", text: "نشط ويحضر بانتظام", curAttended: 4 }, mainActive: true, month: DATA.month, pkg: 8,
+              warnings: [], places: [{ teacher: "أ. معلم تجريبي", month: DATA.month, days: "الأحد", attended: 4, last: "26/10" }], events: [{ date: "26/10", kind: "حضر", note: "", teacher: "أ. معلم تجريبي", minutes: 60 }],
+              log: [], scope: "quick", checked: 1, total: 2, failed: [] } });
+            return ok({ ok: true, result: { message: "✓ تم (" + p.fn + ") " + (a.code || a.fid || a.name || "") } });
+          }
           if (p.action === "stuData") return ok({ ok: true, month: DATA.month, teachers: ["أ. معلم تجريبي", "أ. معلمة تجريبية"],
             families: [{ id: "س.0001", name: "ولي أمر تجريبي", price: 125 }, { id: "س.0002", name: "أسرة تجريبية", price: 100 }],
             students: [{ code: "ط.9001", name: "طالب تجريبي أول", parent: "ولي أمر تجريبي", fid: "س.0001", price: 125, teachers: "أ. معلم تجريبي", active: true },
-              { code: "ط.9002", name: "طالبة أولى", parent: "أسرة تجريبية", fid: "س.0002", price: 100, teachers: "أ. معلمة تجريبية", active: true }] });
+              { code: "ط.9002", name: "طالبة أولى", parent: "أسرة تجريبية", fid: "س.0002", price: 100, teachers: "أ. معلمة تجريبية", active: true, pkg: 8, used: 3 },
+              { code: "ط.9003", name: "طالبة ثانية", parent: "أسرة تجريبية", fid: "س.0002", price: 100, teachers: "", active: false, lastPkg: 8 }] });
           if (p.action === "stuTeacherInfo") return ok({ ok: true, hasStudent: p.code === "ط.9001" && p.teacher === "أ. معلم تجريبي", groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
           if (p.action === "stuRegister") return ok({ ok: true, reg: { code: "ط.9100", name: p.name, parent: p.newFamily ? "أ. " + p.parent : p.parent, familyId: p.newFamily ? "س.0300" : "س.0002", price: p.price,
             firstMonth: p.startDate && p.firstDays ? { applies: true, sessions: 3, monthly: Number(p["package"]), total: 3 * Number(p.price) } : null, evalFee: p.evalFee ? Number(p.evalFee) : 0 },

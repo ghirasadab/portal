@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
+    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -1175,8 +1175,8 @@
     $("suFrom").addEventListener("change", stDisarm);
     $("suSave").addEventListener("click", suSave);
   })();
-  function loadStu(force) {
-    if (STU && !force) { stShow(); return; }
+  function loadStu(force, cb, onErr) {
+    if (STU && !force) { if (cb) cb(); else stShow(); return; }
     $("stLoading").hidden = false; $("stLoading").textContent = "جارٍ تحميل الطلاب والأسر…";
     api("stuData", {}).then(function (d) {
       STU = d;
@@ -1186,8 +1186,8 @@
       ["snTeacher", "suTeacher", "suFrom"].forEach(function (k) { var v = $(k).value; $(k).innerHTML = stOpts(v); });
       if (!$("snStart").value) $("snStart").value = (AD && AD.today) || "";
       $("stLoading").hidden = true;
-      stShow();
-    }).catch(function (e) { $("stLoading").textContent = "⚠ " + e.message; });
+      if (cb) cb(); else stShow();
+    }).catch(function (e) { $("stLoading").textContent = "⚠ " + e.message; if (onErr) onErr(e.message); });
   }
   var stCur = "new";
   function stShow() {
@@ -1372,17 +1372,455 @@
     });
   }
 
+  /* ---------- الحالة: إيقاف الطالب أو الأسرة وإعادة التفعيل، وحالة المعلمين، والفحص (منقولة من صفحة الإدارة) ---------- */
+  var MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  var zCur = "student", zBusy = false, zArmed = "", zTok = "", zTokKey = "", zSt = null, zFam = null, zFSel = null, zFFam = null, zJustResumed = "", TCH = null, zCSt = null;
+  var Z_PILL = { active: "✅ نشط", pending: "⏳ إيقاف معلّق", stopped: "⏸️ متوقف" };
+  var T_PILL = { active: "✅ نشط", leave: "🏖️ في إجازة", stopping: "⏳ يتوقف بنهاية الشهر", stopped: "⏸️ متوقف" };
+  var KIND_COLOR = { "حضر": "#ffffff", "تعويض": "#69db7b", "غياب دون تنبيه": "#ff6b6b", "تأجيل من المعلم": "#ffa94d", "تأجيل من الطالب": "#74c0fc", "انتهت مجالس الشهر": "#b096fb", "خانة غير مفهومة": "#eeeeee" };
+  function nextLbl(l) {
+    var p = String(l || "").trim().split(/\s+/), i = MONTHS_AR.indexOf(p[0]), y = Number(p[1]);
+    if (i < 0 || !y) return "الشهر القادم";
+    i++; if (i > 11) { i = 0; y++; }
+    return MONTHS_AR[i] + " " + y;
+  }
+  function hs(n) {
+    if (n === "" || n === null || n === undefined) return "—";
+    n = Number(n);
+    if (n === 1) return "مجلس واحد";
+    if (n === 2) return "مجلسان";
+    if (n >= 3 && n <= 10 && n === Math.floor(n)) return n + " مجالس";
+    return n + " مجلسًا";
+  }
+  function zState(s) { return s.active === false ? "stopped" : (s.pending ? "pending" : "active"); }
+  function zLn(k, v, cls) { return '<div class="ln' + (cls ? " " + cls : "") + '"><span>' + k + "</span><b>" + v + "</b></div>"; }
+  function zBal(n, cu) { return n > 0 ? "عليها " + pmoney(n, cu) : (n < 0 ? "لها " + pmoney(-n, cu) : "مسدَّد بالكامل"); }
+  function zCls(n) { return n > 0 ? "pos" : (n < 0 ? "neg" : ""); }
+  function zStuHits(q, mark) {
+    if (!q || !STU) return "";
+    var w = norm(q).split(" ");
+    var hits = STU.students.filter(function (s) { return w.every(function (x) { return s._k.indexOf(x) !== -1; }); }).slice(0, 8);
+    return hits.length ? hits.map(function (s) {
+      return '<div class="inv-family-row" data-zc="' + esc(s.code) + '"><span class="inv-fname"><b>' + esc(s.name) + "</b>" + (mark && zState(s) !== "active" ? " <small>(" + Z_PILL[zState(s)].replace(/^\S+\s/, "") + ")</small>" : "") +
+        "<br><small>" + esc(s.code) + " — " + esc(s.parent) + (s.teachers ? " — لدى: " + esc(s.teachers) : "") + "</small></span></div>";
+    }).join("") : '<div class="note">لا توجد نتائج.</div>';
+  }
+  (function buildStatusTab() {
+    var tabs = document.querySelector(".admin-tabs"), after = tabs && tabs.querySelector('[data-atab="students"]');
+    if (!tabs || !after) return;
+    after.insertAdjacentHTML("afterend", '<button type="button" class="tab" data-atab="status">الحالة والفحص</button>');
+    var when = function (p, nextTxt, nowTxt) {
+      return '<div class="field"><label>يسري الإيقاف</label><div class="seg" id="' + p + 'When"><button type="button" class="on" data-w="next">' + nextTxt + '</button><button type="button" data-w="now">' + nowTxt + "</button></div>" +
+        '<div class="note" id="' + p + 'WhenNote"></div></div>';
+    };
+    $("adminView").insertAdjacentHTML("beforeend",
+      '<style>#aZ input:not([type=checkbox]),#aZ select{width:100%;box-sizing:border-box}#aZ .row2{grid-template-columns:repeat(2,minmax(0,1fr))}' +
+      '#aZ .money{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13.5px}#aZ .ln{display:flex;justify-content:space-between;gap:8px;padding:2px 0}' +
+      '#aZ .ln b{font-variant-numeric:tabular-nums;white-space:nowrap}#aZ .res{border-top:1px dashed var(--line);margin-top:4px;padding-top:6px;font-weight:600}#aZ .pos{color:var(--danger)}#aZ .neg{color:var(--ok)}' +
+      '#aZ .picked{background:var(--beige);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}#aZ .picked small{color:var(--muted)}' +
+      '#aZ .verdict{font-weight:700;padding:6px 8px;border-radius:8px;margin-bottom:6px}#aZ .verdict.green{background:#e6f6ea;color:#1e6b34}#aZ .verdict.yellow{background:#fff4d6;color:#7a5a00}#aZ .verdict.red{background:#fde7e7;color:#a12a2a}' +
+      '#aZ .evt{display:grid;grid-template-columns:82px 1fr auto;gap:6px;font-size:12.5px;padding:3px 0;border-top:1px dashed var(--line)}#aZ .evt .dt{display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid #ccc;margin-inline-end:4px;vertical-align:middle}' +
+      '#aZ .chk-h{font-weight:700;font-size:13px;margin:8px 0 2px}#aZ .frow{display:grid;grid-template-columns:auto minmax(0,1fr) 70px 80px;gap:6px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);font-size:14px}' +
+      '#aZ .frow input[type=checkbox]{width:16px;height:16px}#aZ .seg button{min-width:0}</style>' +
+      '<div id="aZ" hidden><section class="card"><div class="seg" id="zSeg"><button type="button" class="on" data-zm="student">طالب</button><button type="button" data-zm="family">أسرة كاملة</button>' +
+      '<button type="button" data-zm="teacher">معلم</button><button type="button" data-zm="check">🔎 فحص</button></div></section>' +
+      '<div id="zLoading" class="loading">جارٍ تحميل الطلاب والأسر…</div>' +
+      // طالب
+      '<section class="card" id="zStu" hidden><h2>إيقاف طالب أو إعادة تفعيله</h2>' +
+      '<div class="field"><label for="zQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="zQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين"></div>' +
+      '<div id="zRes"></div><div class="picked" id="zPicked" hidden></div><div class="money" id="zMoney" hidden></div>' +
+      '<div id="zStopBox" hidden>' + when("zs", "من الشهر القادم", "من الآن") +
+      '<div class="field"><label for="zReason">السبب (اختياري)</label><input id="zReason" placeholder="مثال: سفر، أو انتهاء الاشتراك"></div>' +
+      '<div class="confirm" id="zStopConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zStopBtn">إيقاف الطالب</button></div>' +
+      '<div class="note">يبقى عموده في تبويب الشهر الحالي لدى معلميه حفاظًا على المجالس المسجَّلة، ويُحذف من تبويب الشهر القادم، وتصير باقته صفرًا مع قفل الشهر.</div></div>' +
+      '<div id="zPendBox" hidden><div class="confirm" id="zPendTxt"></div><div class="actions"><button type="button" class="primary" id="zCancelBtn">إلغاء الإيقاف</button></div></div>' +
+      '<div id="zResumeBox" hidden><div class="row2"><div class="field"><label for="zPkg">الباقة (عدد المجالس)</label><input id="zPkg" inputmode="decimal" placeholder="مثال: 8"></div>' +
+      '<div class="field"><label for="zPrice">سعر المجلس</label><input id="zPrice" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
+      '<div class="confirm" id="zResConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zResumeBtn">إعادة التفعيل</button></div>' +
+      '<div class="note">تُضاف قيمة الباقة إلى فاتورة الأسرة لهذا الشهر. بعد التفعيل أضِفه إلى معلمه.</div></div>' +
+      '<div class="actions"><button type="button" class="ghost small" id="zToTeacher" hidden>➕ إضافته إلى معلم الآن</button></div></section>' +
+      // أسرة
+      '<section class="card" id="zFamCard" hidden><h2>إيقاف أسرة كاملة أو إعادة تفعيلها</h2>' +
+      '<div class="field"><label for="zfQ">الأسرة (باسم ولي الأمر أو المعرّف أو اسم طالب)</label><input id="zfQ" type="search" autocomplete="off" placeholder="مثال: أماني أو س.0001"></div>' +
+      '<div id="zfRes"></div><div class="picked" id="zfPicked" hidden></div><div class="money" id="zfMoney" hidden></div>' +
+      '<div id="zfStopBox" hidden>' + when("zf", "من الشهر القادم", "من الآن") +
+      '<div class="field"><label for="zfReason">السبب (اختياري)</label><input id="zfReason" placeholder="مثال: إجازة الأسرة، أو انتهاء الاشتراك"></div>' +
+      '<div class="confirm" id="zfStopConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zfStopBtn">إيقاف الطلاب النشطين</button></div></div>' +
+      '<div id="zfPendBox" hidden><div class="actions"><button type="button" class="ghost" id="zfCancelBtn">↩️ إلغاء الإيقاف المعلّق</button></div></div>' +
+      '<div id="zfResumeBox" hidden><div class="chk-h">إعادة تفعيل الطلاب المتوقفين</div><div id="zfResList"></div>' +
+      '<div class="confirm" id="zfResConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zfResumeBtn">إعادة تفعيل المحدَّدين</button></div>' +
+      '<div class="note">تُضاف قيمة الباقات إلى فاتورة الأسرة لهذا الشهر. بعد التفعيل أضِف كل طالب إلى معلمه من «تسجيل ونقل».</div></div></section>' +
+      // معلم
+      '<section class="card" id="zTch" hidden><h2>حالة المعلم</h2><div id="ztLoading" class="loading">جارٍ تحميل المعلمين…</div>' +
+      '<div class="field"><label for="ztSel">المعلم</label><select id="ztSel" class="date-sel"></select></div><div class="picked" id="ztInfo" hidden></div>' +
+      '<div class="field" id="ztNoteWrap" hidden><label for="ztNote">ملاحظة (اختياري)</label><input id="ztNote" placeholder="مثال: إجازة حتى 15 نوفمبر"></div>' +
+      '<div class="confirm" id="ztConfirm" hidden></div><div class="actions min-row" id="ztActions" style="flex-wrap:wrap"></div><div class="note" id="ztFoot"></div></section>' +
+      // فحص
+      '<section class="card" id="zChk" hidden><h2>فحص الحالة الفعلية لطالب</h2>' +
+      '<div class="field"><label for="zcQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="zcQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين"></div>' +
+      '<div id="zcRes"></div><div class="picked" id="zcPicked" hidden></div>' +
+      '<div class="actions"><button type="button" class="ghost small" id="zcBtn" hidden>🔎 فحص حالته في شيتات المعلمين</button></div><div class="money" id="zcOut" hidden></div>' +
+      '<div class="note">يقرأ شيتات المعلمين في الشهر الحالي والسابق، ولا يغيّر شيئًا. لإيقاف الطالب أو إعادة تفعيله استخدم «طالب».</div></section></div>');
+
+    $("zSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-zm]"); if (b && !zBusy) zMode(b.getAttribute("data-zm")); });
+    ["zs", "zf"].forEach(function (p) {
+      $(p + "When").addEventListener("click", function (e) {
+        var b = e.target.closest("[data-w]"); if (!b) return;
+        $(p + "When").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+        zDisarm(); if (p === "zs") zMoneyStu(); else zfMoney();
+      });
+    });
+    $("aZ").addEventListener("input", function (e) { if (!/^(zQ|zfQ|zcQ)$/.test(e.target.id)) zDisarm(); });
+    $("zQ").addEventListener("input", function () { $("zRes").innerHTML = zStuHits($("zQ").value, true); });
+    $("zRes").addEventListener("click", function (e) { var r = e.target.closest("[data-zc]"); if (r) zPick(r.getAttribute("data-zc")); });
+    $("zStopBtn").addEventListener("click", zStop);
+    $("zCancelBtn").addEventListener("click", zCancel);
+    $("zResumeBtn").addEventListener("click", zResume);
+    $("zToTeacher").addEventListener("click", function () {
+      if (!zSt) return;
+      var c = zSt.code;
+      document.querySelector('[data-atab="students"]').click(); stMode("add");
+      var go = function () { if (STU) suPick(c); };
+      if (STU) go(); else setTimeout(go, 1500);
+    });
+    $("zfQ").addEventListener("input", function () {
+      var q = norm($("zfQ").value), box = $("zfRes");
+      if (!q || !STU) { box.innerHTML = ""; return; }
+      var w = q.split(" ");
+      var hits = STU.families.filter(function (f) { return w.every(function (x) { return f._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (f) {
+        return '<div class="inv-family-row" data-zf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد نتائج.</div>';
+    });
+    $("zfRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-zf]"); if (!r) return;
+      zFSel = STU.families.filter(function (f) { return f.id === r.getAttribute("data-zf"); })[0];
+      $("zfRes").innerHTML = ""; $("zfQ").value = ""; $("zfReason").value = ""; zSetWhen("zf", "next");
+      zFFam = null; zfRender(true); zfLoadMoney();
+    });
+    $("zfStopBtn").addEventListener("click", zfStop);
+    $("zfCancelBtn").addEventListener("click", zfCancel);
+    $("zfResumeBtn").addEventListener("click", zfResume);
+    $("ztSel").addEventListener("change", function () { clearMsg(); $("ztNote").value = ""; ztRender(); });
+    $("ztActions").addEventListener("click", ztAct);
+    $("zcQ").addEventListener("input", function () { $("zcRes").innerHTML = zStuHits($("zcQ").value, false); });
+    $("zcRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-zc]"); if (!r) return;
+      zCSt = STU.students.filter(function (s) { return s.code === r.getAttribute("data-zc"); })[0];
+      if (!zCSt) return;
+      $("zcRes").innerHTML = ""; $("zcQ").value = "";
+      $("zcPicked").innerHTML = "<b>" + esc(zCSt.name) + "</b> — " + esc(zCSt.code) + "<br><small>ولي الأمر: " + esc(zCSt.parent) + (zCSt.teachers ? " — لدى: " + esc(zCSt.teachers) : "") + "</small>";
+      $("zcPicked").hidden = false; $("zcBtn").hidden = false; $("zcOut").hidden = true;
+      zCheck(false);
+    });
+    $("zcBtn").addEventListener("click", function () { zCheck(false); });
+    $("zcOut").addEventListener("click", function (e) { if (e.target.id === "zcFull") zCheck(true); });
+  })();
+  function zEnsure(cb) {
+    if (STU) { $("zLoading").hidden = true; return cb(); }
+    $("zLoading").hidden = false; $("zLoading").textContent = "جارٍ تحميل الطلاب والأسر…";
+    loadStu(false, function () { $("zLoading").hidden = true; cb(); }, function (m) { $("zLoading").textContent = "⚠ " + m; });
+  }
+  function loadZ() { zMode(zCur); }
+  function zMode(m) {
+    zCur = m; clearMsg(); zDisarm();
+    $("zSeg").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-zm") === m); });
+    ["zStu", "zFamCard", "zTch", "zChk"].forEach(function (k) { $(k).hidden = true; });
+    if (m === "teacher") { $("zLoading").hidden = true; $("zTch").hidden = false; return loadTch(); }
+    zEnsure(function () { $({ student: "zStu", family: "zFamCard", check: "zChk" }[m]).hidden = false; });
+  }
+  function zSetWhen(p, w) { $(p + "When").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x.getAttribute("data-w") === w); }); }
+  function zWhen(p) { var b = $(p + "When").querySelector("button.on"); return b ? b.getAttribute("data-w") : "next"; }
+  function zDisarm() {
+    zArmed = "";
+    ["zStopConfirm", "zResConfirm", "zfStopConfirm", "zfResConfirm", "ztConfirm"].forEach(function (k) { if ($(k)) $(k).hidden = true; });
+    if (zBusy) return;
+    var lbl = { zStopBtn: "إيقاف الطالب", zCancelBtn: "إلغاء الإيقاف", zResumeBtn: "إعادة التفعيل", zfStopBtn: "إيقاف الطلاب النشطين", zfCancelBtn: "↩️ إلغاء الإيقاف المعلّق", zfResumeBtn: "إعادة تفعيل المحدَّدين" };
+    Object.keys(lbl).forEach(function (k) { if ($(k)) { $(k).textContent = $(k).getAttribute("data-label") || lbl[k]; $(k).classList.remove("confirming"); } });
+    document.querySelectorAll("#ztActions button").forEach(function (b) { b.classList.remove("confirming"); b.textContent = b.getAttribute("data-label"); });
+  }
+  function zArm(key, btn, box, text) {
+    if (zArmed === key) return true;
+    zDisarm(); zArmed = key;
+    if (box) { $(box).textContent = text + " اضغط مرة أخرى للتأكيد."; $(box).hidden = false; }
+    btn.textContent = "تأكيد"; btn.classList.add("confirming");
+    return false;
+  }
+  function zToken(key) { if (zTokKey !== key) { zTokKey = key; zTok = stTok(); } return zTok; }
+  // تنفيذ دالة من دوال الشيت الرئيسي مع إعادة المحاولة إن كان الشيت مشغولًا
+  function zRun(fn, arg, btn, done, attempt) {
+    zBusy = true; btn.disabled = true; btn.classList.remove("confirming");
+    btn.textContent = attempt > 1 ? "الشيت مشغول… جارٍ إعادة المحاولة (" + attempt + ")" : "جارٍ التنفيذ…";
+    api("stCall", { fn: fn, arg: arg }).then(function (res) {
+      var r = res.result || {};
+      zBusy = false; btn.disabled = false; zTokKey = ""; zDisarm();
+      showMsg((r.alreadySaved ? "✓ هذه العملية مسجَّلة من قبل ولم تُكرَّر.\n" : "") + (r.message || "✓ تم."), true);
+      done(r);
+    }).catch(function (e) {
+      var m = String(e.message || e);
+      if (m.indexOf("BUSY:") === 0 && attempt < 4) { setTimeout(function () { zRun(fn, arg, btn, done, attempt + 1); }, 6000); return; }
+      zBusy = false; btn.disabled = false; zDisarm();
+      showMsg("⚠ " + (m.indexOf("BUSY:") === 0 ? m.slice(5).trim() : m), false);
+    });
+  }
+  function zLoadFamStatus(fid, cb) {
+    api("payStatus", { familyId: fid }).then(cb).catch(function () { cb({ id: fid, error: true }); });
+  }
+  /* طالب */
+  function zPick(code) {
+    zSt = STU.students.filter(function (s) { return s.code === code; })[0];
+    if (!zSt) return;
+    zJustResumed = ""; $("zRes").innerHTML = ""; $("zQ").value = ""; $("zReason").value = ""; zSetWhen("zs", "next");
+    $("zPkg").value = zSt.lastPkg !== "" && zSt.lastPkg !== undefined ? zSt.lastPkg : "";
+    $("zPrice").value = zSt.price !== "" && zSt.price !== undefined ? zSt.price : "";
+    zFam = null; zRender();
+    var fid = zSt.fid;
+    if (fid) zLoadFamStatus(fid, function (f) { if (zSt && zSt.fid === fid) { zFam = f; zMoneyStu(); } });
+  }
+  function zRender() {
+    if (!zSt) return;
+    var st = zState(zSt), next = nextLbl(STU.month);
+    $("zPicked").innerHTML = "<b>" + esc(zSt.name) + "</b> — " + esc(zSt.code) + ' <span class="badge">' + Z_PILL[st] + "</span><br><small>ولي الأمر: " + esc(zSt.parent) +
+      (zSt.teachers ? " — لدى: " + esc(zSt.teachers) : "") + (st !== "stopped" ? " — الباقة: " + hs(zSt.pkg) + " — حضر هذا الشهر: " + hs(zSt.used || 0) : "") + "</small>";
+    $("zPicked").hidden = false;
+    $("zStopBox").hidden = st !== "active"; $("zPendBox").hidden = st !== "pending"; $("zResumeBox").hidden = st !== "stopped";
+    $("zToTeacher").hidden = zJustResumed !== zSt.code;
+    $("zsWhenNote").textContent = zWhen("zs") === "now" ? "من الآن: تصير باقة هذا الشهر " + hs(zSt.used || 0) + " (ما حضره فعلًا)، فتنقص فاتورة الأسرة." : "من " + next + ": يُكمل باقة هذا الشهر (" + hs(zSt.pkg) + ").";
+    if (st === "pending") {
+      var p = zSt.pending;
+      $("zPendTxt").textContent = "مسجَّل إيقافه " + (p.when === "now" ? "من الآن" : "من " + (p.label || next)) + "، ويُغلق نهائيًا مع قفل الشهر. يمكن إلغاؤه قبل ذلك" +
+        (p.when === "now" && p.oldPkg !== "" && p.oldPkg !== undefined ? "، وتعود باقته إلى " + hs(p.oldPkg) + "." : ".");
+    }
+    zMoneyStu(); zDisarm();
+  }
+  function zMoneyStu() {
+    var box = $("zMoney");
+    if (!zSt) { box.hidden = true; return; }
+    if (zCur === "student") $("zsWhenNote").textContent = zWhen("zs") === "now" ? "من الآن: تصير باقة هذا الشهر " + hs(zSt.used || 0) + " (ما حضره فعلًا)، فتنقص فاتورة الأسرة." : "من " + nextLbl(STU.month) + ": يُكمل باقة هذا الشهر (" + hs(zSt.pkg) + ").";
+    var st = zState(zSt), price = Number(zSt.price) || 0, pkg = Number(zSt.pkg) || 0, used = Number(zSt.used) || 0;
+    var left = Math.max(pkg - used, 0), unused = left * price, h = "";
+    var cu = !!(zFam && zFam.usd) || (price > 0 && price < 50);
+    if (zFam && !zFam.error) h += zLn("حساب الأسرة الآن (" + esc(zSt.parent) + ")", zBal(zFam.remaining, cu), zCls(zFam.remaining));
+    else h += '<div class="note">' + (zFam ? "تعذّر تحميل حساب الأسرة." : "جارٍ تحميل حساب الأسرة…") + "</div>";
+    if (st !== "stopped") {
+      if (price === 0) h += zLn("قيمة المجالس المتبقية", "تطوّع، لا أثر مالي");
+      else {
+        h += zLn("المجالس المتبقية من باقته", hs(left) + " × " + numf(price, 2) + " = " + pmoney(unused, cu));
+        if (zFam && !zFam.error && st === "active") {
+          var after = Math.round((zFam.remaining - unused) * 100) / 100;
+          h += '<div class="res">' + zLn(zWhen("zs") === "now" ? "حساب الأسرة بعد الإيقاف من الآن" : "حساب الأسرة بعد قفل الشهر (إن لم يحضر أكثر)", zBal(after, cu), zCls(after)) + "</div>";
+          h += '<div class="note">' + (zWhen("zs") === "now" ? "تنقص فاتورة هذا الشهر فورًا بقيمة المجالس المتبقية." : "يُكمل باقته هذا الشهر، وما لا يحضره يُخصم من فاتورة الأسرة القادمة.") +
+            (after < 0 ? " إن لم يكن للأسرة طلاب آخرون، فهذا مبلغ يُردّ إليها أو يبقى رصيدًا لها." : "") + "</div>";
+        }
+      }
+    }
+    box.innerHTML = h; box.hidden = false;
+  }
+  function zAfter() { var c = zSt && zSt.code; if (!c) return; zPick(c); }
+  function zStop() {
+    if (zBusy || !zSt) return;
+    clearMsg();
+    var when = zWhen("zs"), reason = $("zReason").value.trim(), key = ["stop", zSt.code, when, reason].join("|");
+    if (!zArm(key, $("zStopBtn"), "zStopConfirm", "سيُوقَف " + zSt.name + " " + (when === "now" ? "من الآن، وتصير باقة هذا الشهر " + hs(zSt.used || 0) : "من " + nextLbl(STU.month) + "، ويُكمل باقة هذا الشهر") + ".")) return;
+    var st = zSt;
+    zRun("stopStudent", { code: st.code, when: when, reason: reason, token: zToken(key) }, $("zStopBtn"), function () {
+      st.pending = { when: when, label: nextLbl(STU.month), oldPkg: st.pkg };
+      if (when === "now") st.pkg = st.used || 0;
+      zAfter();
+    }, 1);
+  }
+  function zCancel() {
+    if (zBusy || !zSt || !zSt.pending) return;
+    clearMsg();
+    var key = "unstop|" + zSt.code;
+    if (!zArm(key, $("zCancelBtn"), null, "")) return;
+    var st = zSt;
+    zRun("cancelStudentStop", { code: st.code, token: zToken(key) }, $("zCancelBtn"), function () {
+      if (st.pending.when === "now" && st.pending.oldPkg !== "" && st.pending.oldPkg !== undefined) st.pkg = st.pending.oldPkg;
+      st.pending = null; zAfter();
+    }, 1);
+  }
+  function zResume() {
+    if (zBusy || !zSt) return;
+    clearMsg();
+    var pkg = digits($("zPkg").value), price = digits($("zPrice").value);
+    if (pkg === "" || isNaN(Number(pkg))) return showMsg("⚠ اكتب عدد مجالس الباقة.", false);
+    if (price !== "" && isNaN(Number(price))) return showMsg("⚠ يجب أن يكون سعر المجلس رقمًا.", false);
+    var key = ["resume", zSt.code, pkg, price].join("|");
+    if (!zArm(key, $("zResumeBtn"), "zResConfirm", "سيُعاد تفعيل " + zSt.name + " بباقة " + hs(pkg) + (price !== "" ? " وسعر " + (Number(price) === 0 ? "0 (تطوّع)" : price) : "") + ".")) return;
+    var st = zSt;
+    zRun("resumeStudent", { code: st.code, "package": pkg, price: price, token: zToken(key) }, $("zResumeBtn"), function () {
+      st.active = true; st.pending = null; st.pkg = Number(pkg); st.used = st.used || 0;
+      if (price !== "") st.price = Number(price);
+      var c = st.code; zPick(c); zJustResumed = c; $("zToTeacher").hidden = false;
+    }, 1);
+  }
+  /* أسرة */
+  function zfKids() { return zFSel && STU ? STU.students.filter(function (s) { return s.fid === zFSel.id; }) : []; }
+  function zfLoadMoney() { if (!zFSel) return; var id = zFSel.id; zLoadFamStatus(id, function (f) { if (zFSel && zFSel.id === id) { zFFam = f; zfMoney(); } }); }
+  function zfRender(reset) {
+    if (!zFSel) return;
+    var kids = zfKids(), by = { active: [], pending: [], stopped: [] };
+    kids.forEach(function (k) { by[zState(k)].push(k); });
+    $("zfPicked").innerHTML = "<b>" + esc(zFSel.name) + "</b> — " + esc(zFSel.id) + (kids.length ? kids.map(function (k) {
+      var st = zState(k);
+      return "<div><small>" + Z_PILL[st] + " — " + esc(k.name) + " (" + esc(k.code) + ")" + (st !== "stopped" ? " — الباقة " + hs(k.pkg) + "، حضر " + hs(k.used || 0) : "") + (k.teachers ? " — " + esc(k.teachers) : "") + "</small></div>";
+    }).join("") : "<div><small>لا يوجد طلاب مسجَّلون لهذه الأسرة.</small></div>");
+    $("zfPicked").hidden = false;
+    $("zfStopBox").hidden = !by.active.length; $("zfPendBox").hidden = !by.pending.length; $("zfResumeBox").hidden = !by.stopped.length;
+    $("zfStopBtn").setAttribute("data-label", "إيقاف الطلاب النشطين (" + by.active.length + ")");
+    $("zfCancelBtn").setAttribute("data-label", "↩️ إلغاء الإيقاف المعلّق (" + by.pending.length + ")");
+    if (reset || !$("zfResList").querySelector(".frow[data-code]")) {
+      $("zfResList").innerHTML = (by.stopped.length ? '<div class="frow" style="font-size:12px;color:var(--muted)"><span></span><span>الطالب</span><span>الباقة</span><span>سعر المجلس</span></div>' : "") + by.stopped.map(function (k) {
+        return '<div class="frow" data-code="' + esc(k.code) + '"><input type="checkbox" checked><span>' + esc(k.name) + "</span>" +
+          '<input type="text" inputmode="decimal" class="fpkg" placeholder="الباقة" value="' + esc(k.lastPkg !== "" && k.lastPkg !== undefined ? k.lastPkg : "") + '">' +
+          '<input type="text" inputmode="decimal" class="fprice" placeholder="السعر" value="' + esc(k.price !== "" && k.price !== undefined ? k.price : "") + '"></div>';
+      }).join("");
+    }
+    zDisarm(); zfMoney();
+  }
+  function zfMoney() {
+    var box = $("zfMoney");
+    if (!zFSel) { box.hidden = true; return; }
+    $("zfWhenNote").textContent = zWhen("zf") === "now" ? "من الآن: تُحسب المجالس التي حضروها فقط." : "من " + nextLbl(STU.month) + ": يُكملون باقات هذا الشهر.";
+    var cu = !!(zFFam && zFFam.usd), h = "";
+    if (zFFam && !zFFam.error) h += zLn("حساب الأسرة الآن", zBal(zFFam.remaining, cu), zCls(zFFam.remaining));
+    else h += '<div class="note">' + (zFFam ? "تعذّر تحميل حساب الأسرة." : "جارٍ تحميل حساب الأسرة…") + "</div>";
+    var act = zfKids().filter(function (k) { return zState(k) === "active"; });
+    var unused = Math.round(act.reduce(function (s, k) { return s + Math.max((Number(k.pkg) || 0) - (Number(k.used) || 0), 0) * (Number(k.price) || 0); }, 0) * 100) / 100;
+    if (act.length) {
+      h += zLn("قيمة المجالس المتبقية للطلاب النشطين", pmoney(unused, cu));
+      if (zFFam && !zFFam.error) {
+        var after = Math.round((zFFam.remaining - unused) * 100) / 100;
+        h += '<div class="res">' + zLn(zWhen("zf") === "now" ? "حساب الأسرة بعد الإيقاف من الآن" : "حساب الأسرة بعد قفل الشهر (إن لم يحضروا أكثر)", zBal(after, cu), zCls(after)) + "</div>";
+        if (after < 0) h += '<div class="note">إن توقفت الأسرة نهائيًا فهذا مبلغ يُردّ إليها، وإن كانت إجازة فيبقى رصيدًا لها يُخصم عند عودتها.</div>';
+      }
+    }
+    box.innerHTML = h; box.hidden = false;
+  }
+  function zfDone() {
+    var id = zFSel && zFSel.id;
+    loadStu(true, function () { zFSel = STU.families.filter(function (f) { return f.id === id; })[0] || zFSel; zFFam = null; zfRender(true); zfLoadMoney(); });
+  }
+  function zfStop() {
+    if (zBusy || !zFSel) return;
+    clearMsg();
+    var n = zfKids().filter(function (k) { return zState(k) === "active"; }).length, when = zWhen("zf"), reason = $("zfReason").value.trim(), key = ["fstop", zFSel.id, when, reason].join("|");
+    if (!zArm(key, $("zfStopBtn"), "zfStopConfirm", "سيُوقَف " + (n === 1 ? "طالب واحد" : n === 2 ? "طالبان" : n + " طلاب") + " من أسرة " + zFSel.name + " " + (when === "now" ? "من الآن" : "من " + nextLbl(STU.month)) + ".")) return;
+    zRun("stopFamily", { fid: zFSel.id, when: when, reason: reason, token: zToken(key) }, $("zfStopBtn"), zfDone, 1);
+  }
+  function zfCancel() {
+    if (zBusy || !zFSel) return;
+    clearMsg();
+    var key = "funstop|" + zFSel.id;
+    if (!zArm(key, $("zfCancelBtn"), null, "")) return;
+    zRun("cancelFamilyStop", { fid: zFSel.id, token: zToken(key) }, $("zfCancelBtn"), zfDone, 1);
+  }
+  function zfResume() {
+    if (zBusy || !zFSel) return;
+    clearMsg();
+    var items = [], bad = "";
+    document.querySelectorAll("#zfResList .frow[data-code]").forEach(function (row) {
+      if (!row.querySelector("input[type=checkbox]").checked) return;
+      var code = row.getAttribute("data-code"), k = STU.students.filter(function (s) { return s.code === code; })[0];
+      var pkg = digits(row.querySelector(".fpkg").value), price = digits(row.querySelector(".fprice").value);
+      if (!bad && (pkg === "" || isNaN(Number(pkg)))) bad = "اكتب عدد مجالس الباقة لـ" + k.name + ".";
+      if (!bad && price !== "" && isNaN(Number(price))) bad = "يجب أن يكون سعر المجلس رقمًا لـ" + k.name + ".";
+      items.push({ code: code, name: k.name, "package": pkg, price: price });
+    });
+    if (bad) return showMsg("⚠ " + bad, false);
+    if (!items.length) return showMsg("⚠ حدّد طالبًا واحدًا على الأقل.", false);
+    var key = "fresume|" + JSON.stringify(items);
+    if (!zArm(key, $("zfResumeBtn"), "zfResConfirm", "سيُعاد تفعيل: " + items.map(function (i) { return i.name + " (" + hs(i["package"]) + ")"; }).join("، ") + ".")) return;
+    zRun("resumeFamily", { fid: zFSel.id, items: items, token: zToken(key) }, $("zfResumeBtn"), zfDone, 1);
+  }
+  /* معلم */
+  function loadTch(keep) {
+    $("ztLoading").hidden = false; $("ztLoading").textContent = "جارٍ تحميل المعلمين…";
+    api("stCall", { fn: "getTeacherStatusData" }).then(function (res) {
+      TCH = res.result; $("ztLoading").hidden = true;
+      var cur = keep || $("ztSel").value, order = { active: 0, leave: 1, stopping: 2, stopped: 3 };
+      var list = TCH.teachers.slice().sort(function (a, b) { return order[a.state] - order[b.state]; });
+      $("ztSel").innerHTML = '<option value="">— اختر —</option>' + list.map(function (t) { return '<option value="' + esc(t.name) + '">' + esc(t.name) + " — " + T_PILL[t.state].replace(/^\S+\s/, "") + "</option>"; }).join("");
+      $("ztSel").value = cur || ""; ztRender();
+    }).catch(function (e) { $("ztLoading").textContent = "⚠ " + e.message; });
+  }
+  function ztCur() { return TCH && TCH.teachers.filter(function (t) { return t.name === $("ztSel").value; })[0]; }
+  function ztRender() {
+    var t = ztCur();
+    $("ztInfo").hidden = !t; $("ztNoteWrap").hidden = !t || t.state === "stopping";
+    $("ztActions").innerHTML = ""; $("ztFoot").textContent = ""; zDisarm();
+    if (!t) return;
+    var next = nextLbl(TCH.month);
+    $("ztInfo").innerHTML = "<b>" + esc(t.name) + '</b> <span class="badge">' + T_PILL[t.state] + "</span>" + (t.state === "stopping" ? "<br><small>يتوقف بعد قفل " + esc(t.stopAfter) + "</small>" : "") +
+      "<br><small>" + (t.students.length ? "طلابه الحاليون (" + t.students.length + "): " + esc(t.students.join("، ")) : "لا يوجد طلاب مسجَّلون لديه حاليًا.") + "</small>";
+    var acts = { active: [["leave", "🏖️ تسجيل إجازة"], ["stop", "⏸️ إيقاف بنهاية الشهر"]], leave: [["endLeave", "✅ إنهاء الإجازة"], ["stop", "⏸️ إيقاف بنهاية الشهر"]],
+      stopping: [["cancelStop", "↩️ إلغاء الإيقاف"]], stopped: [["resume", "▶️ إعادة التفعيل"]] }[t.state];
+    $("ztActions").innerHTML = acts.map(function (a, i) { return '<button type="button" class="' + (i ? "ghost" : "primary") + ' small" data-act="' + a[0] + '" data-label="' + a[1] + '">' + a[1] + "</button>"; }).join("");
+    $("ztFoot").textContent = {
+      active: "الإجازة لا توقف قراءة مجالسه، وتمنع فقط تنبيه «توقف تسجيل المجالس». الإيقاف يسري بعد قفل الشهر الحالي حتى تُحسب مجالسه في الراتب، ولا يُنشأ له تبويب " + next + ".",
+      leave: "الإيقاف يسري بعد قفل الشهر الحالي حتى تُحسب مجالسه في الراتب، ولا يُنشأ له تبويب " + next + ".",
+      stopping: "مجالس هذا الشهر تُحسب كالمعتاد. انقل طلابه من «تسجيل ونقل» قبل نهاية الشهر.",
+      stopped: "يعود «نشط» = نعم، ويُنشأ له تبويب الشهر الحالي إن لم يكن موجودًا."
+    }[t.state];
+  }
+  function ztAct(e) {
+    var b = e.target.closest("button[data-act]"); if (!b || zBusy) return;
+    var t = ztCur(); if (!t) return;
+    clearMsg();
+    var act = b.getAttribute("data-act"), note = $("ztNote").value.trim(), key = [act, t.name, note].join("|");
+    var txt = { leave: "ستُسجَّل إجازة " + t.name + ".", endLeave: "ستنتهي إجازة " + t.name + " ويعود نشطًا.",
+      stop: "سيتوقف " + t.name + " بعد قفل " + TCH.month + (t.students.length ? "، وطلابه الحاليون (" + t.students.length + ") ينبغي نقلهم إلى معلمين آخرين" : "") + ".",
+      cancelStop: "سيُلغى إيقاف " + t.name + ".", resume: "سيُعاد تفعيل " + t.name + "." }[act];
+    if (!zArm(key, b, "ztConfirm", txt)) return;
+    zRun("setTeacherStatus", { name: t.name, action: act, note: note, token: zToken(key) }, b, function () { $("ztNote").value = ""; STU = null; loadTch(t.name); }, 1);
+  }
+  /* فحص */
+  function zCheck(full) {
+    if (!zCSt || $("zcBtn").disabled) return;
+    var code = zCSt.code, btn = $("zcBtn"), box = $("zcOut");
+    btn.disabled = true; btn.textContent = full ? "جارٍ الفحص في شيتات كل المعلمين… قد يستغرق نصف دقيقة" : "جارٍ الفحص في شيت معلمه…";
+    box.innerHTML = ""; box.hidden = true;
+    api("stCall", { fn: "inspectStudent", arg: { code: code, full: full } }).then(function (res) {
+      btn.disabled = false; btn.textContent = "🔎 إعادة الفحص";
+      if (zCSt && zCSt.code === code) zRenderCheck(res.result);
+    }).catch(function (e) { btn.disabled = false; btn.textContent = "🔎 فحص حالته في شيتات المعلمين"; showMsg("⚠ " + e.message, false); });
+  }
+  function zRenderCheck(r) {
+    var h = '<div class="verdict ' + esc(r.verdict.level) + '">' + ({ green: "🟢 ", yellow: "🟡 ", red: "🔴 " }[r.verdict.level] || "") + esc(r.verdict.text) + "</div>";
+    h += zLn("حالته في «الأسر والطلاب»", r.mainActive ? "نشط (1)" : "متوقف (0)");
+    h += zLn("حضوره في " + esc(r.month), hs(r.verdict.curAttended) + " من باقة " + hs(r.pkg));
+    if (r.warnings.length) h += '<div class="chk-h">تنبيهات</div>' + r.warnings.map(function (w) { return '<div class="note" style="color:var(--danger);margin-top:2px">⚠ ' + esc(w) + "</div>"; }).join("");
+    h += '<div class="chk-h">أين يوجد</div>' + (r.places.length ? r.places.map(function (p) {
+      return zLn(esc(p.teacher) + " — " + esc(p.month) + (p.days ? " — " + esc(p.days) : "") + (p.match === "name" ? " <small>(بالاسم فقط)</small>" : ""), hs(p.attended) + (p.last ? " — آخرها " + esc(p.last) : ""));
+    }).join("") : '<div class="note">لم يُعثر عليه في أي شيت معلم في الشهر الحالي ولا السابق.</div>');
+    if (r.events.length) h += '<div class="chk-h">آخر ما سُجّل له</div>' + r.events.map(function (e) {
+      return '<div class="evt"><span>' + esc(e.date) + "</span><span><i class='dt' style='background:" + (KIND_COLOR[e.kind] || "#eee") + "'></i>" + esc(e.kind) + (e.note ? " (" + esc(e.note) + ")" : "") +
+        " <small>— " + esc(e.teacher) + "</small></span><span>" + (e.minutes !== "" ? esc(e.minutes) + " د" : "") + "</span></div>";
+    }).join("");
+    if (r.log.length) h += '<div class="chk-h">سجل التنقلات والإيقاف</div>' + r.log.slice(-5).reverse().map(function (l) {
+      return '<div class="note" style="margin-top:2px">' + esc(l.date) + " — " + esc(l.kind) + (l.from ? " من " + esc(l.from) : "") + (l.to ? " إلى " + esc(l.to) : "") + (l.state ? " (" + esc(l.state) + ")" : "") + "</div>";
+    }).join("");
+    var scope = { quick: "فحص سريع: فُحصت شيتات معلمه المذكور فقط (" + r.checked + " من " + r.total + ") لأنه وُجد عنده.", fallback: "لم يوجد عند معلمه المذكور، ففُحصت شيتات كل المعلمين (" + r.checked + ").",
+      full: "فحص شامل: فُحصت شيتات " + r.checked + " معلمًا." }[r.scope] || ("فُحصت شيتات " + r.checked + " معلمًا.");
+    h += '<div class="note">' + scope + (r.failed.length ? " وتعذّر فتح: " + esc(r.failed.join("، ")) + "." : "") + " الفحص للقراءة فقط ولا يغيّر شيئًا.</div>";
+    if (r.scope === "quick") h += '<div class="actions"><button type="button" class="ghost small" id="zcFull">🔎 فحص شامل في كل الشيتات</button></div>';
+    $("zcOut").innerHTML = h; $("zcOut").hidden = false;
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments" || t === "students";
+      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments" || t === "students" || t === "status";
       $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices"; $("aHol").hidden = t !== "holidays";
       if ($("aPay")) $("aPay").hidden = t !== "payments";
       if (t === "holidays") loadHolidays();
       if (t === "payments") loadPay();
       if ($("aStu")) $("aStu").hidden = t !== "students";
       if (t === "students") loadStu();
+      if ($("aZ")) $("aZ").hidden = t !== "status";
+      if (t === "status") loadZ();
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
       if (t === "invoices") { loadInvoices(); loadReady(); }
