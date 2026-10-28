@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = action === "evalRegister";   // تسجيل الطالب المقيَّم قد يستغرق دقيقة
+    var isLong = action === "evalRegister" || action === "paySave";   // تسجيل الطالب المقيَّم أو الدفعة قد يستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -869,13 +869,206 @@
       .then(function () { document.querySelectorAll("#aHol button").forEach(function (b) { b.disabled = false; }); });
   }
 
+  /* ---------- تسجيل الدفعات (منقولة من صفحة الإدارة) ---------- */
+  var PAY = null, PDUE = null, pDueTab = "none", pSel = null, pStat = null, pSaving = false, pPending = "", pTok = "", pTokKey = "";
+  function pmoney(n, usd) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: 2 }) + (usd ? " $" : " ج"); }
+  (function buildPayTab() {
+    var tabs = document.querySelector(".admin-tabs"), inv = tabs && tabs.querySelector('[data-atab="invoices"]');
+    if (!tabs || !inv) return;
+    inv.insertAdjacentHTML("beforebegin", '<button type="button" class="tab" data-atab="payments">الدفعات</button>');
+    $("adminView").insertAdjacentHTML("beforeend",
+      '<div id="aPay" hidden>' +
+      '<section class="card" id="pySearchCard"><h2>تسجيل دفعة — <span id="pyCur"></span></h2>' +
+      '<div class="field"><label for="pyQ">ابحث عن ولي الأمر (بالاسم أو اسم الطالب أو المعرّف)</label>' +
+      '<input id="pyQ" type="search" autocomplete="off" placeholder="مثال: أماني أو حمزة أو س.0001" style="width:100%"></div>' +
+      '<div id="pyResults"></div></section>' +
+      '<section class="card" id="pyDueCard"><h2>متابعة التحصيل — الشهر الحالي</h2>' +
+      '<div class="min-row"><button type="button" class="chip on" data-pdue="none">لم تدفع بعد <span id="pyCNone">…</span></button>' +
+      '<button type="button" class="chip" data-pdue="part">دفعت جزءًا <span id="pyCPart">…</span></button></div>' +
+      '<div class="note" id="pyDueTotal"></div><div id="pyDueList"><div class="loading">جارٍ التحميل…</div></div></section>' +
+      '<section class="card" id="pyFamCard" hidden>' +
+      '<div class="min-row" style="justify-content:space-between"><div><h2 style="margin:0" id="pyName"></h2><div class="note" id="pyMeta" style="margin:2px 0 0"></div></div>' +
+      '<button type="button" class="link-btn" id="pyChange">تغيير</button></div>' +
+      '<div class="cards" style="margin-top:10px;grid-template-columns:repeat(2,minmax(0,1fr))">' +
+      '<div class="kpi"><div class="k">فاتورة الشهر</div><div class="v" id="pyInv">–</div></div>' +
+      '<div class="kpi"><div class="k">رصيد من الشهر السابق</div><div class="v" id="pyPrev">–</div></div>' +
+      '<div class="kpi"><div class="k">المدفوع عن الشهر</div><div class="v" id="pyPaid">–</div></div>' +
+      '<div class="kpi hl"><div class="k">المتبقي</div><div class="v" id="pyRem">–</div></div></div>' +
+      '<span class="badge" id="pyStatus"></span>' +
+      '<div class="note" id="pyFirstNote" hidden>أول شهر في النظام: «المتبقي» لا يشمل رصيد سبتمبر، فاعتمد على الفاتورة التي أُرسلت إلى الأسرة.</div>' +
+      '<div class="field"><label for="pyAmount" id="pyAmountLbl">المبلغ</label>' +
+      '<div class="min-row"><input id="pyAmount" type="text" inputmode="decimal" placeholder="0" style="flex:1;width:auto;min-width:0">' +
+      '<button type="button" class="ghost small" id="pyFill" style="white-space:nowrap">المتبقي كله</button></div></div>' +
+      '<div class="row2"><div class="field"><label for="pyMonth">عن شهر</label><select id="pyMonth" class="date-sel" style="width:100%"></select></div>' +
+      '<div class="field"><label for="pyMethod">طريقة الدفع</label><select id="pyMethod" class="date-sel" style="width:100%"></select></div></div>' +
+      '<div class="field"><label for="pyNotes">ملاحظات (اختياري)</label><textarea id="pyNotes" rows="2" placeholder="مثال: رقم التحويل أو اسم المحوِّل"></textarea></div>' +
+      '<div class="confirm" id="pyConfirm" hidden></div>' +
+      '<div class="actions"><button type="button" class="primary" id="pySave">تسجيل الدفعة</button></div></section>' +
+      '<section class="card" id="pyHistCard" hidden><h2>آخر الدفعات المسجَّلة لهذه الأسرة</h2><div id="pyHist"></div></section>' +
+      '</div>');
+
+    $("pyQ").addEventListener("input", payResults);
+    $("pyQ").addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      var f = $("pyResults").querySelector("[data-pf]"); if (f) paySelect(f.getAttribute("data-pf"));
+    });
+    $("aPay").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-pf]"); if (r) return paySelect(r.getAttribute("data-pf"));
+      var c = e.target.closest("[data-pdue]");
+      if (c) {
+        pDueTab = c.getAttribute("data-pdue");
+        document.querySelectorAll("[data-pdue]").forEach(function (x) { x.classList.toggle("on", x === c); });
+        payDueRender();
+      }
+    });
+    $("pyChange").addEventListener("click", payBack);
+    $("pyFill").addEventListener("click", function () {
+      if (pStat && pStat.remaining > 0) { $("pyAmount").value = pStat.remaining; payResetConfirm(); }
+    });
+    $("pySave").addEventListener("click", paySave);
+    ["pyAmount", "pyMonth", "pyMethod"].forEach(function (k) { $(k).addEventListener("input", payResetConfirm); $(k).addEventListener("change", payResetConfirm); });
+  })();
+  function loadPay() {
+    if (PAY) { payDueLoad(); return; }
+    $("pyResults").innerHTML = '<div class="loading">جارٍ تحميل الأسر…</div>';
+    api("payInit", {}).then(function (d) {
+      PAY = d;
+      d.families.forEach(function (f) { f._k = norm(f.name + " " + f.id + " " + f.kids); });
+      $("pyCur").textContent = d.currentMonth;
+      $("pyMonth").innerHTML = d.months.map(function (m) { return "<option" + (m === d.currentMonth ? " selected" : "") + ">" + esc(m) + "</option>"; }).join("");
+      $("pyMethod").innerHTML = d.methods.map(function (m) { return "<option>" + esc(m) + "</option>"; }).join("");
+      $("pyResults").innerHTML = "";
+      payResults();
+      $("pyQ").focus();
+    }).catch(function (e) { $("pyResults").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+    payDueLoad();
+  }
+  function payResults() {
+    if (!PAY) return;
+    var q = norm($("pyQ").value), box = $("pyResults");
+    if (!q) { box.innerHTML = ""; return; }
+    var words = q.split(" ");
+    var hits = PAY.families.filter(function (f) { return words.every(function (w) { return f._k.indexOf(w) !== -1; }); }).slice(0, 8);
+    box.innerHTML = hits.length ? hits.map(function (f) {
+      return '<div class="inv-family-row" data-pf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+    }).join("") : '<div class="note">لا توجد نتائج.</div>';
+  }
+  function payDueLoad() {
+    api("payDue", {}).then(function (r) { PDUE = r.list || []; payDueRender(); })
+      .catch(function (e) { $("pyDueList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  function payDueRender() {
+    if (!PDUE) return;
+    var none = PDUE.filter(function (f) { return f.none; }), part = PDUE.filter(function (f) { return !f.none; });
+    $("pyCNone").textContent = "(" + none.length + ")"; $("pyCPart").textContent = "(" + part.length + ")";
+    var list = pDueTab === "none" ? none : part;
+    var totE = list.reduce(function (t, f) { return t + (f.usd ? 0 : f.remaining); }, 0);
+    var totU = list.reduce(function (t, f) { return t + (f.usd ? f.remaining : 0); }, 0);
+    $("pyDueTotal").textContent = list.length ? "إجمالي المتبقي: " + pmoney(totE) + (totU ? " + " + pmoney(totU, true) : "") : "";
+    $("pyDueList").innerHTML = list.length ? list.map(function (f) {
+      return '<div class="inv-family-row" data-pf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) +
+        (f.paid > 0 ? " — دفعت " + pmoney(f.paid, f.usd) + " من " + pmoney(f.invoice + f.previous, f.usd) : " — الفاتورة " + pmoney(f.invoice + f.previous, f.usd)) +
+        '</small></span><span class="inv-rem">' + pmoney(f.remaining, f.usd) + "</span></div>";
+    }).join("") : '<div class="note">لا توجد أسر في هذه القائمة.</div>';
+  }
+  function paySelect(id) {
+    if (pSaving || !PAY) return;
+    pSel = PAY.families.filter(function (f) { return f.id === id; })[0];
+    if (!pSel) return;
+    clearMsg();
+    $("pySearchCard").hidden = true; $("pyDueCard").hidden = true;
+    $("pyName").textContent = pSel.name;
+    $("pyMeta").textContent = pSel.id + (pSel.kids ? " — " + pSel.kids : "");
+    ["pyInv", "pyPrev", "pyPaid", "pyRem"].forEach(function (k) { $(k).textContent = "…"; });
+    $("pyStatus").textContent = ""; $("pyStatus").hidden = true;
+    $("pyFamCard").hidden = false; $("pyHistCard").hidden = true;
+    $("pyFirstNote").hidden = !PAY.firstMonthNote;
+    $("pyAmount").value = ""; $("pyNotes").value = "";
+    pStat = null; payResetConfirm();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    payStatus(id, 1);
+  }
+  function payStatus(id, attempt) {
+    api("payStatus", { familyId: id }).then(payRender).catch(function (e) {
+      if (attempt < 2) return payStatus(id, attempt + 1);
+      showMsg("⚠ " + e.message, false);
+    });
+  }
+  function payRender(s) {
+    if (!s || !pSel || s.id !== pSel.id) return;
+    pStat = s;
+    var u = !!s.usd;
+    $("pyAmountLbl").textContent = u ? "المبلغ بالدولار ($)" : "المبلغ بالجنيه";
+    $("pyAmount").placeholder = u ? "0 $" : "0 ج";
+    $("pyInv").textContent = pmoney(s.invoice, u); $("pyPrev").textContent = pmoney(s.previous, u);
+    $("pyPaid").textContent = pmoney(s.paid, u); $("pyRem").textContent = pmoney(s.remaining, u);
+    $("pyStatus").textContent = s.status || ""; $("pyStatus").hidden = !s.status;
+    var h = s.payments || [];
+    $("pyHist").innerHTML = h.map(function (p) {
+      return '<div class="inv-family-row" style="cursor:default"><span class="inv-fname">' + esc(p.date || "—") + " · " + esc(p.month) + (p.method ? " · " + esc(p.method) : "") +
+        (p.notes ? "<br><small>" + esc(p.notes) + "</small>" : "") + '</span><b>' + pmoney(p.amount, u) + "</b></div>";
+    }).join("");
+    $("pyHistCard").hidden = !h.length;
+  }
+  function payBack() {
+    if (pSaving) return;
+    pSel = null; pStat = null;
+    $("pyFamCard").hidden = true; $("pyHistCard").hidden = true;
+    $("pySearchCard").hidden = false; $("pyDueCard").hidden = false;
+    $("pyQ").value = ""; payResults(); payDueRender(); $("pyQ").focus();
+  }
+  function payResetConfirm() {
+    pPending = ""; $("pyConfirm").hidden = true;
+    if (!pSaving) { $("pySave").textContent = "تسجيل الدفعة"; $("pySave").classList.remove("confirming"); }
+  }
+  function paySetSaving(on, label) {
+    pSaving = on; $("pySave").disabled = on; $("pySave").classList.remove("confirming");
+    $("pySave").textContent = label || (on ? "جارٍ التسجيل…" : "تسجيل الدفعة");
+  }
+  function paySave() {
+    if (pSaving || !pSel) return;
+    clearMsg();
+    var amount = parseFloat(digits($("pyAmount").value));
+    if (!(amount > 0)) return showMsg("⚠ اكتب مبلغًا صحيحًا أكبر من صفر.", false);
+    var month = $("pyMonth").value, key = pSel.id + "|" + amount + "|" + month;
+    if (pPending !== key) {
+      pPending = key;
+      $("pyConfirm").textContent = "سيُسجَّل " + pmoney(amount, pStat && pStat.usd) + " من " + pSel.name + " عن " + month + ". اضغط مرة أخرى للتأكيد.";
+      $("pyConfirm").hidden = false;
+      $("pySave").textContent = "تأكيد التسجيل"; $("pySave").classList.add("confirming");
+      return;
+    }
+    payResetConfirm();
+    // رقم مميّز للدفعة: إن أُعيد إرسالها بعد انقطاع لا تُسجَّل مرتين
+    if (pTokKey !== key) { pTokKey = key; pTok = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10); }
+    paySend({ familyId: pSel.id, amount: amount, month: month, method: $("pyMethod").value, notes: $("pyNotes").value, payToken: pTok }, pSel, 1);
+  }
+  function paySend(p, fam, attempt) {
+    paySetSaving(true, attempt > 1 ? "الشيت مشغول بتحديث المجالس… جارٍ إعادة المحاولة (" + attempt + ")" : "جارٍ التسجيل…");
+    api("paySave", p).then(function (s) {
+      paySetSaving(false);
+      pTokKey = ""; pTok = "";
+      if (pSel && pSel.id === fam.id) { $("pyAmount").value = ""; $("pyNotes").value = ""; }
+      payRender(s);
+      payDueLoad();
+      showMsg((s.alreadySaved ? "✓ هذه الدفعة مسجَّلة من قبل ولم تُكرَّر: " : "✓ سُجّلت دفعة ") + pmoney(p.amount, s.usd) + " من " + fam.name + "، والمتبقي الآن " + pmoney(s.remaining, s.usd) + ".", true);
+    }).catch(function (e) {
+      var m = String(e.message || e);
+      if (m.indexOf("BUSY:") === 0 && attempt < 4) { setTimeout(function () { paySend(p, fam, attempt + 1); }, 6000); return; }
+      paySetSaving(false);
+      showMsg("⚠ " + (m.indexOf("BUSY:") === 0 ? m.slice(5).trim() : m) + " إن لم تتأكد من وصول الدفعة فاضغط «تسجيل الدفعة» مرة أخرى بالبيانات نفسها، ولن تُكرَّر.", false);
+    });
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays";
+      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments";
       $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices"; $("aHol").hidden = t !== "holidays";
+      if ($("aPay")) $("aPay").hidden = t !== "payments";
       if (t === "holidays") loadHolidays();
+      if (t === "payments") loadPay();
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
       if (t === "invoices") { loadInvoices(); loadReady(); }

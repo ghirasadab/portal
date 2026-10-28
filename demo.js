@@ -37,6 +37,13 @@
     lastReports: { "S:ط.9001": { date: dates[0].key, studied: "قصيدة «الأطلال» — الأبيات الخمسة الأولى.", performance: "", notes: "", homework: "حفظ الأبيات الخمسة.", individual: "" } }
   };
   var reports = {};
+  function fmt(d) { return ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear(); }
+  var PAYS = { fams: [
+      { id: "س.0001", name: "ولي أمر تجريبي", invoice: 600, previous: 0, paid: 0, remaining: 600, status: "لم يدفع", usd: false, payments: [] },
+      { id: "س.0002", name: "أسرة تجريبية", invoice: 900, previous: 50, paid: 400, remaining: 550, status: "دفع جزئي", usd: false, payments: [{ date: "05/10/2026", amount: 400, month: DATA.month, method: "فودافون كاش", notes: "" }] },
+      { id: "س.0003", name: "أسرة ثانية", invoice: 40, previous: 0, paid: 0, remaining: 40, status: "لم يدفع", usd: true, payments: [] }],
+    find: function (id) { return PAYS.fams.filter(function (f) { return f.id === id; })[0]; },
+    status: function (id) { var f = PAYS.find(id); return { ok: true, id: id, found: true, name: f.name, invoice: f.invoice, paid: f.paid, remaining: f.remaining, previous: f.previous, status: f.status, usd: f.usd, payments: f.payments.slice(0, 5) }; } };
   window.PORTAL_DEMO = function (p) {
     return new Promise(function (ok) {
       setTimeout(function () {
@@ -58,6 +65,12 @@
           if (p.action === "evalTeacherInfo") return ok({ ok: true, groups: [{ start: 6, label: "مجموعة أدب: طالبة أولى، طالبة ثانية" }], singles: [{ code: "ط.9001", label: "طالب تجريبي أول (ط.9001) — مجلس فردي" }] });
           if (p.action === "evalRegister") return ok({ ok: true, code: "ط.9100", familyId: "س.0002", existed: false, filled: [], message: "✓ " + p.name + " أُضيف إلى " + p.teacher + "\n\"" + DATA.month + "\": أُضيف في العمود H" });
           if (p.action === "assignEval") return ok({ ok: true, saved: true });
+          if (p.action === "payInit") return ok({ ok: true, currentMonth: DATA.month, firstMonthNote: false, months: [DATA.month], methods: ["فودافون كاش", "إنستاباي", "تحويل بنكي", "نقدًا"],
+            families: [{ id: "س.0001", name: "ولي أمر تجريبي", kids: "طالب تجريبي أول" }, { id: "س.0002", name: "أسرة تجريبية", kids: "طالبة أولى، طالبة ثانية" }, { id: "س.0003", name: "أسرة ثانية", kids: "طالبة ثالثة" }] });
+          if (p.action === "payDue") return ok({ ok: true, list: PAYS.fams.filter(function (f) { return f.remaining > 0; }).map(function (f) { return { id: f.id, name: f.name, invoice: f.invoice, paid: f.paid, remaining: f.remaining, previous: f.previous, status: f.status, none: f.paid === 0, usd: f.usd }; }) });
+          if (p.action === "payStatus") return ok(PAYS.status(p.familyId));
+          if (p.action === "paySave") { var pf = PAYS.find(p.familyId); pf.paid += Number(p.amount); pf.remaining = Math.max(0, pf.invoice + pf.previous - pf.paid); pf.status = pf.remaining ? "دفع جزئي" : "تم السداد";
+            pf.payments.unshift({ date: fmt(today), amount: Number(p.amount), month: p.month, method: p.method, notes: p.notes }); return ok(PAYS.status(p.familyId)); }
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }
         if (p.action === "init") {
