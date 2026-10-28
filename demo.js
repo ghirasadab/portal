@@ -69,6 +69,7 @@
             families: [{ id: "س.0001", name: "ولي أمر تجريبي", kids: "طالب تجريبي أول" }, { id: "س.0002", name: "أسرة تجريبية", kids: "طالبة أولى، طالبة ثانية" }, { id: "س.0003", name: "أسرة ثانية", kids: "طالبة ثالثة" }] });
           if (p.action === "payDue") return ok({ ok: true, list: PAYS.fams.filter(function (f) { return f.remaining > 0; }).map(function (f) { return { id: f.id, name: f.name, invoice: f.invoice, paid: f.paid, remaining: f.remaining, previous: f.previous, status: f.status, none: f.paid === 0, usd: f.usd }; }) });
           if (p.action === "payStatus") return ok(PAYS.status(p.familyId));
+          if (p.action === "paySave" && !p.force && PAYS.find(p.familyId).payments.some(function (x) { return x.month === p.month && x.amount === Number(p.amount); })) return ok(Promise.reject(new Error("DUP:بتاريخ 05/10/2026")));
           if (p.action === "paySave") { var pf = PAYS.find(p.familyId); pf.paid += Number(p.amount); pf.remaining = Math.max(0, pf.invoice + pf.previous - pf.paid); pf.status = pf.remaining ? "دفع جزئي" : "تم السداد";
             pf.payments.unshift({ date: fmt(today), amount: Number(p.amount), month: p.month, method: p.method, notes: p.notes }); return ok(PAYS.status(p.familyId)); }
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });

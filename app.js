@@ -1056,6 +1056,15 @@
       var m = String(e.message || e);
       if (m.indexOf("BUSY:") === 0 && attempt < 4) { setTimeout(function () { paySend(p, fam, attempt + 1); }, 6000); return; }
       paySetSaving(false);
+      if (m.indexOf("DUP:") === 0) {
+        // دفعة مطابقة مسجَّلة من قبل: لا تُسجَّل إلا بتأكيد صريح
+        $("pyConfirm").innerHTML = "⚠ توجد دفعة مسجَّلة لهذه الأسرة بالمبلغ نفسه (" + esc(pmoney(p.amount, pStat && pStat.usd)) + ") وعن الشهر نفسه (" + esc(p.month) + ") " + esc(m.slice(4)) +
+          "، فلم تُسجَّل هذه الدفعة.<br>إن كانت دفعة جديدة فعلًا فاضغط الزر التالي." +
+          '<div class="actions"><button type="button" class="ghost small" id="pyForce">سجّلها دفعة جديدة</button></div>';
+        $("pyConfirm").hidden = false;
+        $("pyForce").addEventListener("click", function () { $("pyConfirm").hidden = true; p.force = true; paySend(p, fam, 1); });
+        return showMsg("⚠ لم تُسجَّل الدفعة: يبدو أنها مكررة.", false);
+      }
       showMsg("⚠ " + (m.indexOf("BUSY:") === 0 ? m.slice(5).trim() : m) + " إن لم تتأكد من وصول الدفعة فاضغط «تسجيل الدفعة» مرة أخرى بالبيانات نفسها، ولن تُكرَّر.", false);
     });
   }
