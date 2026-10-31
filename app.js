@@ -2274,7 +2274,7 @@
     $("invOutput").innerHTML = '<div class="loading">جارٍ تحميل بيانات الفواتير…</div>';
     openInvModal();
     api("invoiceData", { families: codes, isNext: invIsNextMode }).then(function (r) {
-      currentInvoicesLoaded = r.invoices || [];
+      currentInvoicesLoaded = roundInvUp(r.invoices || []);
       renderInvoices(currentInvoicesLoaded);
     }).catch(function (e) {
       $("invOutput").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>";
@@ -2438,6 +2438,21 @@
       })
         .catch(function (e) { showMsg("⚠ " + e.message, false); });
     });
+  }
+
+  // تقريب «إجمالي الفاتورة» و«المطلوب دفعه» لأعلى جنيه صحيح (الفاتورة ذات المبلغ اليدوي تبقى كما هي)
+  function roundInvUp(list) {
+    var up = function (x) { return Math.ceil(Math.round(x * 100) / 100); };
+    (list || []).forEach(function (inv) {
+      var sm = inv && inv.summary;
+      if (!sm || sm.manual || sm.roundedUp) return;
+      var total = Number(sm.total) || 0, due = Number(sm.due) || 0;
+      var nt = up(total), delta = nt - total;
+      sm.total = nt;
+      if (due > 0) sm.due = up(due + delta);
+      sm.roundedUp = true;
+    });
+    return list;
   }
 
   function renderInvoices(invoices) {
@@ -2642,7 +2657,7 @@
 
     try {
       var r = await api("invoiceData", { families: codes, isNext: invIsNextMode });
-      var invoices = r.invoices || [];
+      var invoices = roundInvUp(r.invoices || []);
       if (!invoices.length) throw new Error("لا توجد فواتير لتنزيلها");
 
       var zip = new JSZip();
