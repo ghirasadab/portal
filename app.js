@@ -2440,16 +2440,26 @@
     });
   }
 
-  // تقريب «إجمالي الفاتورة» و«المطلوب دفعه» لأعلى جنيه صحيح (الفاتورة ذات المبلغ اليدوي تبقى كما هي)
+  // أرقام الفاتورة كلها أعداد صحيحة: المبالغ المستحقة (قيمة الباقة والمتأخرات) تُقرَّب لأعلى،
+  // وما هو لصالح الأسرة (الرصيد السابق والمدفوع والمتبقي من الباقة) يُقرَّب لأسفل حتى لا تزيد عليهم الحسبة.
+  // المطلوب دفعه يُعاد حسابه من الأرقام الظاهرة فيجمع الكارت صحيحًا. الفاتورة ذات المبلغ اليدوي تبقى كما هي.
   function roundInvUp(list) {
-    var up = function (x) { return Math.ceil(Math.round(x * 100) / 100); };
+    var r2 = function (x) { return Math.round((Number(x) || 0) * 100) / 100; };
+    var up = function (x) { return Math.ceil(r2(x)); };
+    var down = function (x) { return Math.floor(r2(x)); };
     (list || []).forEach(function (inv) {
       var sm = inv && inv.summary;
       if (!sm || sm.manual || sm.roundedUp) return;
-      var total = Number(sm.total) || 0, due = Number(sm.due) || 0;
-      var nt = up(total), delta = nt - total;
-      sm.total = nt;
-      if (due > 0) sm.due = up(due + delta);
+      var sum = 0;
+      (inv.students || []).forEach(function (st) { st.amount = up(st.amount); sum += st.amount; });
+      sm.total = sum > 0 ? sum : up(sm.total);
+      var prev = Number(sm.prevCredit) || 0;
+      sm.prevCredit = prev < 0 ? -down(-prev) : up(prev);
+      sm.arrears = up(sm.arrears);
+      sm.paid = down(sm.paid);
+      sm.unusedValue = down(sm.unusedValue);
+      var due = sm.total + sm.prevCredit + sm.arrears - sm.paid;
+      sm.due = inv.isNext ? Math.max(0, due) : due;
       sm.roundedUp = true;
     });
     return list;
