@@ -2280,6 +2280,111 @@
     });
   });
 
+  /* ---------- تسجيل دفعات الأسر المحدَّدة دفعة واحدة ---------- */
+  (function () {
+    var btn = $("invPayMark");
+    if (!btn) return;
+    var rows = [], busy = false;
+    function todayStr() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+    function modal() {
+      var m = $("invPayModal");
+      if (m) return m;
+      m = document.createElement("div");
+      m.id = "invPayModal";
+      m.style.cssText = "position:fixed;top:0;right:0;bottom:0;left:0;z-index:1000;background:rgba(0,0,0,.55);display:none;overflow:auto;padding:16px;-webkit-overflow-scrolling:touch";
+      m.innerHTML = '<div style="max-width:520px;margin:0 auto;background:var(--bg,#fff);border-radius:14px;padding:12px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>تسجيل دفعات الأسر المحدَّدة</b>' +
+        '<button type="button" class="ghost small" id="ipClose">✕ إغلاق</button></div><div id="ipBody"></div></div>';
+      document.body.appendChild(m);
+      m.addEventListener("click", function (e) { if (e.target === m && !busy) close(); });
+      $("ipClose").addEventListener("click", function () { if (!busy) close(); });
+      return m;
+    }
+    function close() { var m = $("invPayModal"); if (m) { m.style.display = "none"; document.body.style.overflow = ""; } }
+    function methodOpts(list, sel) { return list.map(function (x) { return "<option" + (x === sel ? " selected" : "") + ">" + esc(x) + "</option>"; }).join(""); }
+    function build(methods) {
+      var def = methods.indexOf("إنستاباي") !== -1 ? "إنستاباي" : methods[0];
+      $("ipBody").innerHTML =
+        '<div class="note">الدفعات عن شهر <b>' + esc(INV.month) + "</b>، وتُسجَّل في «سجل المدفوعات» ثم تُعلَّم الأسرة «أُرسلت» وتختفي من القائمة.</div>" +
+        '<div class="row2"><div class="field"><label for="ipMethod">طريقة الدفع للجميع</label><select id="ipMethod" class="date-sel" style="width:100%">' + methodOpts(methods, def) + "</select></div>" +
+        '<div class="field"><label for="ipDate">تاريخ الدفع</label><input id="ipDate" type="date" value="' + todayStr() + '" max="' + todayStr() + '" style="width:100%"></div></div>' +
+        rows.map(function (r, i) {
+          return '<div class="inv-family-row" style="cursor:default;flex-wrap:wrap;gap:6px" data-i="' + i + '"><span class="inv-fname"><b>' + esc(r.name) + "</b><br><small>" + esc(r.code) + '</small><div class="note" data-st="' + i + '" style="margin:2px 0 0"></div></span>' +
+            '<input type="text" inputmode="decimal" class="ip-amt" data-i="' + i + '" value="' + r.amount + '" style="width:90px"> <small>' + esc(r.cur) + "</small>" +
+            '<select class="date-sel ip-m" data-i="' + i + '" style="width:110px">' + methodOpts(methods, def) + "</select></div>";
+        }).join("") +
+        '<div class="actions"><button type="button" class="primary" id="ipGo">تسجيل ' + rows.length.toLocaleString("ar-EG") + " دفعة</button></div>";
+      $("ipMethod").addEventListener("change", function () {
+        document.querySelectorAll(".ip-m").forEach(function (s) { s.value = $("ipMethod").value; });
+      });
+      $("ipGo").addEventListener("click", run);
+    }
+    function setSt(i, t, ok) { var e = document.querySelector('[data-st="' + i + '"]'); if (e) { e.textContent = t; e.style.color = ok === false ? "var(--danger,#c62828)" : ok ? "var(--ok,#2e7d32)" : ""; } }
+    function run() {
+      if (busy) return;
+      var date = $("ipDate").value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return showMsg("⚠ اختر تاريخ الدفع.", false);
+      var jobs = [];
+      for (var i = 0; i < rows.length; i++) {
+        var a = parseFloat(digits(document.querySelector('.ip-amt[data-i="' + i + '"]').value));
+        if (!(a > 0)) return showMsg("⚠ مبلغ «" + rows[i].name + "» غير صحيح.", false);
+        jobs.push({ i: i, amount: a, method: document.querySelector('.ip-m[data-i="' + i + '"]').value });
+      }
+      if (!confirm("تسجيل " + jobs.length + " دفعة بتاريخ " + date + "؟")) return;
+      busy = true; $("ipGo").disabled = true; $("ipGo").textContent = "جارٍ التسجيل…";
+      var done = [], skipped = 0, failed = 0, month = INV.month, isNext = invIsNextMode;
+      (function next(k) {
+        if (k >= jobs.length) return finish();
+        var j = jobs[k], r = rows[j.i];
+        setSt(j.i, "جارٍ التسجيل…");
+        var tok = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+        (function attempt(n) {
+          api("paySave", { familyId: r.code, amount: j.amount, month: month, method: j.method, notes: "", payToken: tok, date: date }).then(function () {
+            done.push(r); setSt(j.i, "✓ سُجّلت", true); next(k + 1);
+          }).catch(function (e) {
+            var m = String(e.message || e);
+            if (m.indexOf("BUSY:") === 0 && n < 4) return setTimeout(function () { attempt(n + 1); }, 6000);
+            if (m.indexOf("DUP:") === 0) { skipped++; setSt(j.i, "تخطّيت: توجد دفعة بالمبلغ نفسه عن الشهر نفسه " + m.slice(4), false); }
+            else { failed++; setSt(j.i, "⚠ " + m.replace(/^BUSY:\s*/, ""), false); }
+            next(k + 1);
+          });
+        })(1);
+      })(0);
+      function finish() {
+        var msg = "✓ سُجّلت " + done.length + " دفعة" + (skipped ? "، وتُخطّيت " + skipped + " مكررة" : "") + (failed ? "، وفشلت " + failed : "") + ".";
+        function end() {
+          busy = false; $("ipGo").disabled = false; $("ipGo").textContent = "إغلاق";
+          var g = $("ipGo").cloneNode(true); $("ipGo").replaceWith(g); g.addEventListener("click", close);
+          showMsg((failed ? "⚠ " : "") + msg, !failed);
+          renderInvoiceList();
+        }
+        if (!done.length) return end();
+        var fams = done.map(function (r) { return { code: r.code, name: r.name }; });
+        api("sentMark", { month: month, isNext: isNext, families: fams }).then(function () {
+          (INV.families || []).forEach(function (f) { if (done.some(function (r) { return String(r.code) === String(f.code); })) f.sent = true; });
+          end();
+        }).catch(function (e) { msg += " لكن تعذّر تعليمها «أُرسلت»: " + e.message; end(); });
+      }
+    }
+    btn.addEventListener("click", function () {
+      if (busy || !INV) return;
+      rows = [];
+      var skip = 0;
+      document.querySelectorAll(".inv-chk:checked").forEach(function (c) {
+        var f = (INV.families || []).filter(function (x) { return String(x.code) === c.getAttribute("data-code"); })[0];
+        if (!f) return;
+        if (!(f.remaining > 0)) { skip++; return; }
+        rows.push({ code: f.code, name: f.name, amount: Math.round(f.remaining * 100) / 100, cur: f.currency || "ج" });
+      });
+      if (!rows.length) return showMsg(skip ? "⚠ الأسر المحدَّدة لا مستحق عليها." : "⚠ حدّد أسرة واحدة على الأقل.", false);
+      modal().style.display = "block"; document.body.style.overflow = "hidden";
+      $("ipBody").innerHTML = '<div class="loading">جارٍ التحميل…</div>';
+      var go = PAY && PAY.methods ? Promise.resolve(PAY) : api("payInit", {}).then(function (d) { PAY = d; return d; });
+      go.then(function (d) { build(d.methods || ["إنستاباي"]); if (skip) $("ipBody").insertAdjacentHTML("afterbegin", '<div class="note">استُبعدت ' + skip + " أسرة لا مستحق عليها.</div>"); })
+        .catch(function (e) { $("ipBody").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+    });
+  })();
+
   /* ---------- الفواتير الجاهزة (تُسجَّل تلقائيًا في تبويب «فواتير جاهزة») ---------- */
   var READY = [];
   function loadReady() {
