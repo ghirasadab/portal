@@ -2459,7 +2459,10 @@
       sm.arrears = up(sm.arrears);
       sm.paid = down(sm.paid);
       sm.unusedValue = down(sm.unusedValue);
-      var due = sm.total + sm.prevCredit + sm.arrears - sm.paid;
+      // مجالس الشهر السابق غير المأخوذة (موجب لصالح الأسرة) أو الزائدة (سالب مستحق)
+      var cv = Number(sm.carriedValue) || 0;
+      sm.carriedValue = cv > 0 ? down(cv) : -up(-cv);
+      var due = sm.total + sm.prevCredit + sm.arrears - sm.paid - sm.carriedValue;
       sm.due = inv.isNext ? Math.max(0, due) : due;
       sm.roundedUp = true;
     });
@@ -2515,6 +2518,9 @@
     var adjRow = sm.adjust
       ? '<div class="isum-row muted"><span>تعديل</span><span class="inum-val">' + (sm.adjust < 0 ? "−" : "+") + fmt(Math.abs(sm.adjust)) + " " + cur + '</span></div>'
       : "";
+    var carRow = sm.carriedValue
+      ? '<div class="isum-row muted"><span>' + (sm.carriedValue > 0 ? "مجالس من الشهر السابق لم تُؤخذ: " : "مجالس زائدة من الشهر السابق: ") + sessionsWord(Math.abs(sm.carriedCount || 0)) + '</span><span class="inum-val ' + (sm.carriedValue > 0 ? "credit" : "") + '">' + (sm.carriedValue > 0 ? "﹢" : "") + fmt(Math.abs(sm.carriedValue)) + " " + cur + '</span></div>'
+      : "";
     var paidRow = sm.paid > 0
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
@@ -2544,7 +2550,7 @@
         // ملخص
         '<div class="inv-summary-box">' +
           '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.manual ? sm.due : sm.total) + " " + cur + '</span></div>' +
-          (sm.manual ? "" : prevRow + arrRow + discRow + paidRow + adjRow) +
+          (sm.manual ? "" : carRow + prevRow + arrRow + discRow + paidRow + adjRow) +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
