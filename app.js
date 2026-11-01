@@ -2452,7 +2452,8 @@
       if (!sm || sm.manual || sm.roundedUp) return;
       var sum = 0;
       (inv.students || []).forEach(function (st) { st.amount = up(st.amount); sum += st.amount; });
-      sm.total = sum > 0 ? sum : up(sm.total);
+      // الشهر الحالي: إجمالي الفاتورة من الشيت (يشمل خصم المجالس المرحّلة) فلا يُستبدل بمجموع الباقات
+      sm.total = (inv.isNext && sum > 0) ? sum : up(sm.total);
       var prev = Number(sm.prevCredit) || 0;
       sm.prevCredit = prev < 0 ? -down(-prev) : up(prev);
       sm.arrears = up(sm.arrears);
