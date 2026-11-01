@@ -2513,10 +2513,10 @@
 
     // ملخص مالي
     var prevRow = sm.prevCredit && sm.prevCredit !== 0
-      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
+      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "مبلغ لكم من مدفوعات سابقة" : "مبلغ متبقٍّ عليكم من فواتير سابقة") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "−" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
       : "";
     var arrRow = sm.arrears && sm.arrears > 0
-      ? '<div class="isum-row muted"><span>متأخرات سابقة</span><span class="inum-val">' + fmt(sm.arrears) + " " + cur + '</span></div>'
+      ? '<div class="isum-row muted"><span>مبلغ متأخر عليكم</span><span class="inum-val">' + fmt(sm.arrears) + " " + cur + '</span></div>'
       : "";
     var discRow = sm.discount && sm.discount > 0
       ? '<div class="isum-row muted"><span>خصم</span><span class="inum-val">−' + fmt(sm.discount) + " " + cur + '</span></div>'
@@ -2525,10 +2525,10 @@
       ? '<div class="isum-row muted"><span>تعديل</span><span class="inum-val">' + (sm.adjust < 0 ? "−" : "+") + fmt(Math.abs(sm.adjust)) + " " + cur + '</span></div>'
       : "";
     var carRow = sm.carriedValue && sm.carriedValue !== 0 && sm.carriedCount
-      ? '<div class="isum-row muted"><span>' + (sm.carriedValue > 0 ? "مجالس " + prevMonthName(inv.month) + " غير المأخوذة: " : "مجالس " + prevMonthName(inv.month) + " الزائدة: ") + sessionsWord(Math.abs(sm.carriedCount)) + '</span><span class="inum-val ' + (sm.carriedValue > 0 ? "credit" : "") + '">' + (sm.carriedValue > 0 ? "−" : "+") + fmt(Math.abs(sm.carriedValue)) + " " + cur + '</span></div>'
+      ? '<div class="isum-row muted"><span>' + (sm.carriedValue > 0 ? "مجالس " + prevMonthName(inv.month) + " لم تُؤخذ (قيمتها لكم): " : "مجالس " + prevMonthName(inv.month) + " زائدة (قيمتها عليكم): ") + sessionsWord(Math.abs(sm.carriedCount)) + '</span><span class="inum-val ' + (sm.carriedValue > 0 ? "credit" : "") + '">' + (sm.carriedValue > 0 ? "−" : "+") + fmt(Math.abs(sm.carriedValue)) + " " + cur + '</span></div>'
       : "";
     var paidRow = sm.paid > 0
-      ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
+      ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val credit">−' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
 
     return '<div class="inv-card" id="invCard_' + idx + '" style="max-width:440px;width:100%">' +
