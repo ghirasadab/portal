@@ -63,6 +63,12 @@
   function dateIdx(key) { for (var i = 0; i < D.dates.length; i++) if (D.dates[i].key === key) return i; return -1; }
   function fmtDate(key) { var p = key.split("-"); return Number(p[2]) + "/" + Number(p[1]) + "/" + p[0]; }
   function weekdayOf(key) { var i = dateIdx(key); return i === -1 ? "" : D.dates[i].weekday; }
+  // اسم الشهر السابق من نص مثل «نوفمبر 2026» (وإلا «الشهر السابق»)
+  function prevMonthName(label) {
+    var M = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    var i = M.indexOf(String(label || "").trim().split(/\s+/)[0]);
+    return i < 0 ? "الشهر السابق" : M[(i + 11) % 12];
+  }
   function sessionsWord(n) { return n === 1 ? "مجلس واحد" : n === 2 ? "مجلسان" : (n >= 3 && n <= 10 ? n + " مجالس" : n + " مجلسًا"); }
   function variants(day) {
     var v = norm(day);
@@ -2459,7 +2465,10 @@
       sm.arrears = up(sm.arrears);
       sm.paid = down(sm.paid);
       sm.unusedValue = down(sm.unusedValue);
-      var due = sm.total + sm.prevCredit + sm.arrears - sm.paid;
+      // مجالس الشهر السابق: موجب = لم تُؤخذ (يُخصم ويُقرَّب لأسفل)، سالب = زائدة (تُضاف وتُقرَّب لأعلى)
+      var car = Number(sm.carriedValue) || 0;
+      sm.carriedValue = car < 0 ? -up(-car) : down(car);
+      var due = sm.total - sm.carriedValue + sm.prevCredit + sm.arrears - sm.paid;
       sm.due = inv.isNext ? Math.max(0, due) : due;
       sm.roundedUp = true;
     });
@@ -2515,6 +2524,9 @@
     var adjRow = sm.adjust
       ? '<div class="isum-row muted"><span>تعديل</span><span class="inum-val">' + (sm.adjust < 0 ? "−" : "+") + fmt(Math.abs(sm.adjust)) + " " + cur + '</span></div>'
       : "";
+    var carRow = sm.carriedValue && sm.carriedValue !== 0 && sm.carriedCount
+      ? '<div class="isum-row muted"><span>' + (sm.carriedValue > 0 ? "مجالس " + prevMonthName(inv.month) + " غير المأخوذة: " : "مجالس " + prevMonthName(inv.month) + " الزائدة: ") + sessionsWord(Math.abs(sm.carriedCount)) + '</span><span class="inum-val ' + (sm.carriedValue > 0 ? "credit" : "") + '">' + (sm.carriedValue > 0 ? "−" : "+") + fmt(Math.abs(sm.carriedValue)) + " " + cur + '</span></div>'
+      : "";
     var paidRow = sm.paid > 0
       ? '<div class="isum-row muted"><span>المدفوع</span><span class="inum-val">' + fmt(sm.paid) + " " + cur + '</span></div>'
       : "";
@@ -2544,7 +2556,7 @@
         // ملخص
         '<div class="inv-summary-box">' +
           '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.manual ? sm.due : sm.total) + " " + cur + '</span></div>' +
-          (sm.manual ? "" : prevRow + arrRow + discRow + paidRow + adjRow) +
+          (sm.manual ? "" : carRow + prevRow + arrRow + discRow + paidRow + adjRow) +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
