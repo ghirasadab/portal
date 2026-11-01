@@ -2451,7 +2451,7 @@
       var sm = inv && inv.summary;
       if (!sm || sm.manual || sm.roundedUp) return;
       var sum = 0;
-      (inv.students || []).forEach(function (st) { st.amount = up(st.amount); sum += st.amount; });
+      (inv.students || []).forEach(function (st) { st.amount = up(st.amount); sum += st.amount; if (st.owedValue) st.owedValue = up(st.owedValue); });
       // الشهر الحالي: إجمالي الفاتورة من الشيت (يشمل خصم المجالس المرحّلة) فلا يُستبدل بمجموع الباقات
       sm.total = (inv.isNext && sum > 0) ? sum : up(sm.total);
       var prev = Number(sm.prevCredit) || 0;
@@ -2459,6 +2459,7 @@
       sm.arrears = up(sm.arrears);
       sm.paid = down(sm.paid);
       sm.unusedValue = down(sm.unusedValue);
+      sm.evalFee = down(sm.evalFee);
       var due = sm.total + sm.prevCredit + sm.arrears - sm.paid;
       sm.due = inv.isNext ? Math.max(0, due) : due;
       sm.roundedUp = true;
@@ -2494,7 +2495,15 @@
 
     // صفوف الطلاب
     var studRows = (inv.students || []).map(function (s) {
-      return "<tr>" +
+      var owed = s.owedSessions > 0
+        ? "<tr>" +
+            "<td class='iname'>" + esc(s.name) + "<div style='font-size:11px;color:#b45309'>مجالس " + esc(inv.prevMonth || "الشهر السابق") + " (لم تُحاسَب)</div></td>" +
+            "<td class='inum'>" + s.owedSessions + "</td>" +
+            "<td class='inum'>" + s.owedSessions + "</td>" +
+            "<td class='iamt'>" + fmt(s.owedValue) + " " + cur + "</td>" +
+          "</tr>"
+        : "";
+      return owed + "<tr>" +
         "<td class='iname'>" + esc(s.name) + "</td>" +
         "<td class='inum'>" + (s.sessions || "—") + "</td>" +
         "<td class='inum'>" + (s.done != null ? s.done : "—") + "</td>" +
@@ -2503,8 +2512,13 @@
     }).join("");
 
     // ملخص مالي
-    var prevRow = sm.prevCredit && sm.prevCredit !== 0
-      ? '<div class="isum-row muted"><span>' + (sm.prevCredit < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (sm.prevCredit < 0 ? "credit" : "") + '">' + (sm.prevCredit < 0 ? "﹢" : "") + fmt(Math.abs(sm.prevCredit)) + " " + cur + '</span></div>'
+    var evalFee = sm.evalFee > 0 ? Math.min(sm.evalFee, Math.max(0, -(sm.prevCredit || 0))) : 0;
+    var prevShown = (sm.prevCredit || 0) + evalFee;
+    var evalRow = evalFee > 0
+      ? '<div class="isum-row muted"><span>المدفوع (رسوم التقييم)</span><span class="inum-val credit">' + fmt(evalFee) + " " + cur + '</span></div>'
+      : "";
+    var prevRow = prevShown && prevShown !== 0
+      ? '<div class="isum-row muted"><span>' + (prevShown < 0 ? "رصيد سابق لصالح الأسرة" : "رصيد سابق مستحق") + '</span><span class="inum-val ' + (prevShown < 0 ? "credit" : "") + '">' + (prevShown < 0 ? "﹢" : "") + fmt(Math.abs(prevShown)) + " " + cur + '</span></div>'
       : "";
     var arrRow = sm.arrears && sm.arrears > 0
       ? '<div class="isum-row muted"><span>متأخرات سابقة</span><span class="inum-val">' + fmt(sm.arrears) + " " + cur + '</span></div>'
@@ -2544,7 +2558,7 @@
         // ملخص
         '<div class="inv-summary-box">' +
           '<div class="isum-row"><span>إجمالي الفاتورة</span><span class="inum-val">' + fmt(sm.manual ? sm.due : sm.total) + " " + cur + '</span></div>' +
-          (sm.manual ? "" : prevRow + arrRow + discRow + paidRow + adjRow) +
+          (sm.manual ? "" : evalRow + prevRow + arrRow + discRow + paidRow + adjRow) +
           (sm.due > 0
             ? '<div class="isum-row total"><span>المطلوب دفعه</span><span class="inum-val">' + fmt(sm.due) + " " + cur + '</span></div>'
             : sm.due < 0
