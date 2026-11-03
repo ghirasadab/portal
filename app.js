@@ -9,7 +9,7 @@
   var unit = null;         // المجلس المختار
   var status = "";         // حالة المجلس المختارة
   var saving = false, armed = false, lastSaved = null, pendingOverwrite = false;
-  var AD = null, OV = null, asTeacher = "", SAL = null;   // وضع المدير؛ SAL: صرف الرواتب للشهر المعروض
+  var AD = null, OV = null, asTeacher = "", SAL = null, EXP = null;   // وضع المدير؛ SAL: صرف الرواتب، EXP: مصروفات الشهر المعروض
 
   /* ---------------- الاتصال بالخادم ---------------- */
   function api(action, payload) {
@@ -597,7 +597,7 @@
   function loadOverview(fresh) {
     $("aLoading").hidden = false; $("aBody").hidden = true;
     api("overview", { month: $("aMonth").value, fresh: !!fresh }).then(function (o) {
-      OV = o; SAL = null; renderOverview(); loadSal();
+      OV = o; SAL = null; EXP = null; renderOverview(); loadSal();
     }).catch(function (e) { $("aLoading").hidden = true; showMsg("⚠ " + (e.message || e), false); });
   }
 
@@ -608,12 +608,14 @@
     $("aMoneyMonth").textContent = o.month;
     document.querySelectorAll(".mLbl").forEach(function (x) { x.textContent = o.month; });
     function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
-    var r = o.money.report, adj = salAdjTotal(o);
+    var r = o.money.report;
+    var oth = r ? (r.wages || 0) + (r.ads || 0) + (r.other || 0) : 0;
     $("aMoney").innerHTML = r ? [
       kpi("مجموع الوارد", both(r.income, r.incomeUsd), "الدفعات المسجلة عن الشهر"),
-      kpi("رواتب المعلمين", money(r.salaries + adj), adj ? "بعد الحافز الإضافي والخصم (" + (adj > 0 ? "+" : "−") + money(Math.abs(adj)) + ")" : ""),
+      kpi("رواتب المعلمين", money(r.salaries + (r.bonus || 0)), r.bonus ? "منها حوافز " + money(r.bonus) : ""),
+      kpi("مصروفات أخرى", money(oth), oth ? "عاملون " + money(r.wages || 0) + " — إعلانات " + money(r.ads || 0) + " — أخرى " + money(r.other || 0) : "لم تُسجَّل بعد"),
       kpi("المتبقي للأسر", both(r.familiesCredit, r.familiesCreditUsd), "مجالس مدفوعة لم تُعقد بعد"),
-      kpi("صافي المال", money(r.net - adj), r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : "", "hl")
+      kpi("صافي المال", money(r.net), (r.deductions ? "بعد إضافة خصومات العاملين " + money(r.deductions) + (r.incomeUsd ? " — " : "") : "") + (r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : ""), "hl")
     ].join("") : '<div class="note">لا يوجد صف لهذا الشهر في «التقرير المالي».</div>';
     var fm = o.money.families;
     if (fm && fm.egp) {
@@ -645,7 +647,7 @@
       }).join("") : '<div class="note">لا توجد مجالس مجدولة اليوم حسب «أيام الدرس» في الجداول.</div>';
     }
 
-    renderStats(o); renderPay(o);
+    renderStats(o); renderPay(o); renderExp();
   }
 
   var CNT = ["done", "makeup", "absent", "pTeacher", "pStudent"];
@@ -684,11 +686,6 @@
     var x = SAL && SAL.month === o.month && SAL.rows[name];
     return x || { paid: false, paidDate: "", extra: 0, deduct: 0, note: "" };
   }
-  function salAdjTotal(o) {
-    if (!SAL || SAL.month !== o.month) return 0;
-    var t = 0; Object.keys(SAL.rows).forEach(function (k) { t += (SAL.rows[k].extra || 0) - (SAL.rows[k].deduct || 0); });
-    return Math.round(t * 100) / 100;
-  }
   function netOf(o, t) { var x = salOf(o, t.name); return Math.round((t.salary + (x.extra || 0) - (x.deduct || 0)) * 100) / 100; }
   function loadSal() {
     var month = OV && OV.month;
@@ -696,7 +693,24 @@
     api("salList", { month: month }).then(function (res) {
       if (!OV || OV.month !== month) return;
       SAL = res; renderOverview();
-    }).catch(function (e) { $("pSalNote") && ($("pSalNote").textContent = "⚠ تعذّر تحميل صرف الرواتب: " + e.message); });
+      return api("expList", { month: month });
+    }).then(function (res) {
+      if (!res || !OV || OV.month !== month) return;
+      EXP = res; renderExp();
+      return api("repGet", { month: month, relink: true });
+    }).then(function (res) {
+      if (!res || !OV || OV.month !== month) return;
+      if (res.report) { OV.money.report = res.report; renderOverview(); }
+      if (res.warning) showMsg("⚠ " + res.warning, false);
+    }).catch(function (e) { showMsg("⚠ تعذّر تحميل صرف الرواتب والمصروفات: " + (e.message || e), false); });
+  }
+  // تحديث أرقام «التقرير المالي» بعد أي حفظ (الحافز والخصم والمصروفات تدخل فيه)
+  function refreshRep() {
+    var month = OV && OV.month; if (!month) return;
+    api("repGet", { month: month }).then(function (res) {
+      if (!OV || OV.month !== month || !res.report) return;
+      OV.money.report = res.report; renderOverview();
+    }).catch(function () {});
   }
   function renderPay(o) {
     var f = $("pFilter").value, ok = o.teachers.filter(function (t) { return t.ok; });
@@ -717,8 +731,8 @@
         '<span class="sal-date">' + (x.paid && x.paidDate ? esc(fmtDate(x.paidDate)) : "") + "</span></label></td>" +
         "<td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td><td>" +
         money(t.beforeBonus) + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td>" +
-        '<td><input class="sal-in" data-sf="extra" inputmode="decimal" placeholder="0" value="' + (x.extra || "") + '" aria-label="حافز إضافي ' + esc(t.name) + '"' + dis + "></td>" +
-        '<td><input class="sal-in" data-sf="deduct" inputmode="decimal" placeholder="0" value="' + (x.deduct || "") + '" aria-label="خصم ' + esc(t.name) + '"' + dis + "></td>" +
+        '<td><span class="sal-wrap plus" title="حافز إضافي"><b>+</b><input class="sal-in" data-sf="extra" inputmode="decimal" placeholder="حافز" value="' + (x.extra || "") + '" aria-label="حافز إضافي ' + esc(t.name) + '"' + dis + "></span></td>" +
+        '<td><span class="sal-wrap minus" title="خصم"><b>−</b><input class="sal-in" data-sf="deduct" inputmode="decimal" placeholder="خصم" value="' + (x.deduct || "") + '" aria-label="خصم ' + esc(t.name) + '"' + dis + "></span></td>" +
         '<td data-net><b>' + money(netOf(o, t)) + "</b></td>" +
         '<td><input class="sal-note" data-sf="note" maxlength="200" placeholder="اختياري" value="' + esc(x.note || "") + '" aria-label="سبب ' + esc(t.name) + '"' + dis + "></td><td>" + note + "</td></tr>";
     }).join("") || '<tr><td colspan="13" class="note">لا يوجد معلمون في هذا التصنيف.</td></tr>';
@@ -744,6 +758,108 @@
       kpi("متوسط أجر الساعة", money(hrs ? (gross - bon) / hrs : 0), "دون الحافز")
     ].join("");
   }
+  /* ---------- المصروفات ورواتب الموظفين غير المدرسين (تحت جدول الرواتب) ---------- */
+  var X_KINDS = [["موظف", "راتب موظف"], ["إعلانات", "إعلانات"], ["اشتراكات وخدمات", "اشتراكات وخدمات"], ["مصاريف أخرى", "مصاريف أخرى"]];
+  var xEdit = "", xBusy = false;
+  function prevMonthLbl(l) {
+    var p = String(l || "").trim().split(/\s+/), i = MONTHS_AR.indexOf(p[0]), y = Number(p[1]);
+    if (i < 0 || !y) return "";
+    i--; if (i < 0) { i = 11; y--; }
+    return MONTHS_AR[i] + " " + y;
+  }
+  (function buildExp() {
+    var host = $("pTable") && $("pTable").closest("section"); if (!host) return;
+    host.insertAdjacentHTML("afterend",
+      '<section class="card" id="xCard"><h2>المصروفات ورواتب الموظفين — <span class="mLbl"></span></h2>' +
+      '<div class="cards" id="xKpis"></div><div id="xList"><div class="note">جارٍ التحميل…</div></div>' +
+      '<div class="chk-h" id="xFormH" style="font-weight:700;margin:12px 0 4px">إضافة بند</div>' +
+      '<div class="row2"><div class="field"><label for="xKind">البند</label><select id="xKind" class="date-sel">' + X_KINDS.map(function (k) { return '<option value="' + k[0] + '">' + k[1] + "</option>"; }).join("") + "</select></div>" +
+      '<div class="field"><label for="xName" id="xNameL">اسم الموظف</label><input id="xName" maxlength="120" autocomplete="off" placeholder="مثال: أ. سارة (سكرتارية)"></div></div>' +
+      '<div class="row2"><div class="field"><label for="xAmt" id="xAmtL">الراتب</label><input id="xAmt" inputmode="decimal" placeholder="0"></div>' +
+      '<div class="field" id="xDedWrap"><label for="xDed">خصم على الموظف (اختياري)</label><input id="xDed" inputmode="decimal" placeholder="0"></div></div>' +
+      '<div class="field"><label for="xNote">ملاحظة (اختياري)</label><input id="xNote" maxlength="200" placeholder="مثال: عن شهر كامل، أو سبب الخصم"></div>' +
+      '<div class="actions"><button type="button" class="primary" id="xSave">إضافة</button><button type="button" class="ghost" id="xCancel" hidden>إلغاء التعديل</button>' +
+      '<button type="button" class="ghost" id="xCopy">نسخ موظفي الشهر السابق</button></div>' +
+      '<div class="note">كل بند يُحفظ فور الضغط في تبويب «مصروفات البورتال» بالشيت الرئيسي، وتُجمع أرقامه تلقائيًا في «التقرير المالي»: رواتب الموظفين في «أجور العاملين»، والإعلانات في «إعلانات»، والاشتراكات والخدمات والمصاريف الأخرى في «مصاريف أخرى»، وخصم الموظفين في «خصومات العاملين». وكل إضافة أو تعديل أو حذف يُسجَّل في «سجل تعديل المصروفات».</div></section>' +
+      '<style>#xCard .xrow{display:grid;grid-template-columns:minmax(0,1.4fr) 90px 80px auto;gap:6px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);font-size:14px}' +
+      '#xCard .xrow small{color:var(--muted)}#xCard .xh{font-weight:700;margin:10px 0 2px}#xCard .xrow b{font-variant-numeric:tabular-nums}#xCard input,#xCard select{width:100%;box-sizing:border-box}' +
+      '#xCard .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}</style>');
+    function kindUi() {
+      var emp = $("xKind").value === "موظف";
+      $("xNameL").textContent = emp ? "اسم الموظف" : "وصف المصروف";
+      $("xName").placeholder = emp ? "مثال: أ. سارة (سكرتارية)" : "مثال: إعلان فيسبوك، أو اشتراك الدومين";
+      $("xAmtL").textContent = emp ? "الراتب" : "المبلغ";
+      $("xDedWrap").hidden = !emp;
+    }
+    $("xKind").addEventListener("change", kindUi); kindUi();
+    function reset() { xEdit = ""; $("xName").value = ""; $("xAmt").value = ""; $("xDed").value = ""; $("xNote").value = ""; $("xSave").textContent = "إضافة"; $("xCancel").hidden = true; $("xFormH").textContent = "إضافة بند"; $("xKind").disabled = false; kindUi(); }
+    $("xCancel").addEventListener("click", reset);
+    function done(res) {
+      xBusy = false; $("xSave").disabled = false;
+      if (res && res.warning) showMsg("⚠ " + res.warning, false);
+      reset();
+      api("expList", { month: OV.month }).then(function (r) { EXP = r; renderExp(); refreshRep(); });
+    }
+    function fail(e) { xBusy = false; $("xSave").disabled = false; $("xSave").textContent = xEdit ? "حفظ التعديل" : "إضافة"; showMsg("⚠ " + (e.message || e), false); }
+    $("xSave").addEventListener("click", function () {
+      if (xBusy || !OV) return;
+      var body = { month: OV.month, id: xEdit, kind: $("xKind").value, name: $("xName").value, amount: $("xAmt").value, deduct: $("xDed").value, note: $("xNote").value };
+      xBusy = true; $("xSave").disabled = true; $("xSave").textContent = "جارٍ الحفظ…";
+      api("expSave", body).then(done).catch(fail);
+    });
+    $("xCopy").addEventListener("click", function () {
+      if (xBusy || !OV) return;
+      var prev = prevMonthLbl(OV.month);
+      if (!prev) return showMsg("تعذّر تحديد الشهر السابق.", false);
+      if (!window.confirm("نسخ موظفي «" + prev + "» ورواتبهم إلى «" + OV.month + "» (دون تكرار من سُجّل منهم)؟")) return;
+      xBusy = true; $("xCopy").disabled = true;
+      api("expCopyPrev", { month: OV.month, prev: prev }).then(function (res) { $("xCopy").disabled = false; showMsg("✓ نُسخ " + res.copied + " موظف من " + prev + ".", true); done(res); })
+        .catch(function (e) { $("xCopy").disabled = false; fail(e); });
+    });
+    $("xList").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-xe],[data-xd]"); if (!b || !EXP) return;
+      var id = b.getAttribute("data-xe") || b.getAttribute("data-xd");
+      var x = EXP.rows.filter(function (r) { return r.id === id; })[0]; if (!x) return;
+      if (b.hasAttribute("data-xd")) {
+        if (xBusy || !window.confirm("حذف «" + x.name + "» (" + x.kind + ")؟ يبقى أثره في «سجل تعديل المصروفات».")) return;
+        xBusy = true;
+        api("expDelete", { month: OV.month, id: id }).then(done).catch(fail);
+        return;
+      }
+      xEdit = id; $("xKind").value = x.kind; $("xKind").disabled = true; kindUi();
+      $("xName").value = x.name; $("xAmt").value = x.amount || ""; $("xDed").value = x.deduct || ""; $("xNote").value = x.note || "";
+      $("xSave").textContent = "حفظ التعديل"; $("xCancel").hidden = false; $("xFormH").textContent = "تعديل بند";
+      $("xName").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  })();
+  function renderExp() {
+    if (!$("xCard") || !OV) return;
+    var ex = EXP && EXP.month === OV.month ? EXP : null;
+    if (!ex) { $("xList").innerHTML = '<div class="note">جارٍ التحميل…</div>'; $("xKpis").innerHTML = ""; return; }
+    var sum = {}, ded = 0;
+    ex.rows.forEach(function (r) { sum[r.kind] = (sum[r.kind] || 0) + r.amount; if (r.kind === "موظف") ded += r.deduct; });
+    var b = ex.base || {}, r0 = OV.money && OV.money.report;
+    $("xKpis").innerHTML = [
+      kpi("أجور العاملين", money((sum["موظف"] || 0) + (b.wages || 0)), ded ? "خصم الموظفين " + money(ded) : ""),
+      kpi("إعلانات", money((sum["إعلانات"] || 0) + (b.ads || 0))),
+      kpi("اشتراكات وخدمات ومصاريف أخرى", money((sum["اشتراكات وخدمات"] || 0) + (sum["مصاريف أخرى"] || 0) + (b.other || 0))),
+      kpi("إجمالي المصروفات", r0 ? money(r0.expenses) : "—", "رواتب المعلمين وحوافزهم وما سبق", "hl")
+    ].join("");
+    var h = "";
+    X_KINDS.forEach(function (k) {
+      var rows = ex.rows.filter(function (r) { return r.kind === k[0]; });
+      if (!rows.length) return;
+      h += '<div class="xh">' + esc(k[1]) + " — " + money(sum[k[0]] || 0) + "</div>";
+      h += rows.map(function (r) {
+        return '<div class="xrow"><span><b>' + esc(r.name) + "</b>" + (r.note ? "<br><small>" + esc(r.note) + "</small>" : "") + "</span><b>" + money(r.amount) + "</b><span>" +
+          (r.deduct ? '<span class="badge warn">خصم ' + money(r.deduct) + "</span>" : "") + '</span><span style="white-space:nowrap"><button type="button" class="ghost small" data-xe="' + esc(r.id) + '" aria-label="تعديل">✏️</button> <button type="button" class="ghost small" data-xd="' + esc(r.id) + '" aria-label="حذف">🗑</button></span></div>';
+      }).join("");
+    });
+    var prior = [];
+    if (b.wages) prior.push("أجور العاملين " + money(b.wages)); if (b.ads) prior.push("إعلانات " + money(b.ads)); if (b.other) prior.push("مصاريف أخرى " + money(b.other)); if (b.deduct) prior.push("خصومات العاملين " + money(b.deduct)); if (b.bonus) prior.push("حوافز المعلمين " + money(b.bonus));
+    if (prior.length) h += '<div class="note" style="margin-top:8px">في «التقرير المالي» أرقام مكتوبة سابقًا غير مفصّلة لهذا الشهر وتبقى داخلة في الإجمالي كما هي: ' + prior.join("، ") + ".</div>";
+    $("xList").innerHTML = h || '<div class="note">لا توجد بنود مسجَّلة لهذا الشهر. أضف أول بند من النموذج أدناه.</div>';
+  }
   // حفظ صف معلم في صرف الرواتب عند أي تغيير
   var salTimers = {};
   function salSaveRow(tr) {
@@ -762,8 +878,8 @@
       var f = $("pFilter").value, ok = o.teachers.filter(function (t2) { return t2.ok; });
       var rows = ok.filter(function (t2) { var p = salOf(o, t2.name).paid; return f === "all" || (f === "yes" ? t2.bonus > 0 : f === "no" ? !(t2.bonus > 0) : f === "paid" ? p : !p); });
       payTotals(o, rows, ok, ok.filter(function (t2) { return t2.bonus > 0; }));
-      var adj = salAdjTotal(o), r = o.money.report;
-      if (r) { clearTimeout(salTimers.m); salTimers.m = setTimeout(renderOverview, 600); }
+      if (res.warning) showMsg("⚠ " + res.warning, false);
+      clearTimeout(salTimers.m); salTimers.m = setTimeout(refreshRep, 400);
     }).catch(function (e) {
       tr.classList.remove("sal-saving");
       showMsg("⚠ لم يُحفظ تعديل " + name + ": " + (e.message || e), false);
@@ -782,7 +898,7 @@
     });
     var st = document.createElement("style");
     st.textContent = "#pTable input.sal-in{width:72px;min-width:0;padding:6px 4px;box-sizing:border-box;text-align:center}#pTable input.sal-note{width:120px;min-width:0;padding:6px;box-sizing:border-box}#pTable td,#pTable th{padding-inline:6px}.sal-chk{display:flex;align-items:center;gap:6px;white-space:nowrap}" +
-      ".sal-chk input{width:20px;height:20px}.sal-date{font-size:11.5px;color:var(--muted)}.sal-paid-row td{background:#eaf6ec}.sal-saving{opacity:.55}";
+      ".sal-wrap{display:flex;align-items:center;gap:4px}.sal-wrap b{font-size:18px;width:14px;text-align:center}.sal-wrap.plus b{color:#1e6b34}.sal-wrap.minus b{color:#a12a2a}#pTable .sal-wrap.plus input{border-color:#9ccfa7}#pTable .sal-wrap.minus input{border-color:#e3a5a5}.sal-chk input{width:20px;height:20px}.sal-date{font-size:11.5px;color:var(--muted)}.sal-paid-row td{background:#eaf6ec}.sal-saving{opacity:.55}";
     document.head.appendChild(st);
   })();
   function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
