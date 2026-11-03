@@ -9,7 +9,7 @@
   var unit = null;         // المجلس المختار
   var status = "";         // حالة المجلس المختارة
   var saving = false, armed = false, lastSaved = null, pendingOverwrite = false;
-  var AD = null, OV = null, asTeacher = "";   // وضع المدير
+  var AD = null, OV = null, asTeacher = "", SAL = null;   // وضع المدير؛ SAL: صرف الرواتب للشهر المعروض
 
   /* ---------------- الاتصال بالخادم ---------------- */
   function api(action, payload) {
@@ -590,14 +590,14 @@
     $("who").textContent = "المدير";
     $("month").hidden = true;
     $("aMonth").innerHTML = d.months.map(function (m) { return "<option>" + esc(m) + "</option>"; }).join("");
-    if (OV) renderOverview(); else loadOverview(false);
+    if (OV) { renderOverview(); if (!SAL) loadSal(); } else loadOverview(false);
     loadReady();
   }
 
   function loadOverview(fresh) {
     $("aLoading").hidden = false; $("aBody").hidden = true;
     api("overview", { month: $("aMonth").value, fresh: !!fresh }).then(function (o) {
-      OV = o; renderOverview();
+      OV = o; SAL = null; renderOverview(); loadSal();
     }).catch(function (e) { $("aLoading").hidden = true; showMsg("⚠ " + (e.message || e), false); });
   }
 
@@ -608,12 +608,12 @@
     $("aMoneyMonth").textContent = o.month;
     document.querySelectorAll(".mLbl").forEach(function (x) { x.textContent = o.month; });
     function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
-    var r = o.money.report;
+    var r = o.money.report, adj = salAdjTotal(o);
     $("aMoney").innerHTML = r ? [
       kpi("مجموع الوارد", both(r.income, r.incomeUsd), "الدفعات المسجلة عن الشهر"),
-      kpi("رواتب المعلمين", money(r.salaries)),
+      kpi("رواتب المعلمين", money(r.salaries + adj), adj ? "بعد الحافز الإضافي والخصم (" + (adj > 0 ? "+" : "−") + money(Math.abs(adj)) + ")" : ""),
       kpi("المتبقي للأسر", both(r.familiesCredit, r.familiesCreditUsd), "مجالس مدفوعة لم تُعقد بعد"),
-      kpi("صافي المال", money(r.net), r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : "", "hl")
+      kpi("صافي المال", money(r.net - adj), r.incomeUsd ? "بالجنيه فقط؛ الدولار: " + money((r.incomeUsd || 0) - (r.familiesCreditUsd || 0), true) : "", "hl")
     ].join("") : '<div class="note">لا يوجد صف لهذا الشهر في «التقرير المالي».</div>';
     var fm = o.money.families;
     if (fm && fm.egp) {
@@ -679,29 +679,112 @@
     ].join("");
   }
 
-  // الرواتب: تفصيل أجر كل معلم وحافز الإنترنت
+  // الرواتب: تفصيل أجر كل معلم وحافز الإنترنت، مع علامة القبض والحافز الإضافي والخصم
+  function salOf(o, name) {
+    var x = SAL && SAL.month === o.month && SAL.rows[name];
+    return x || { paid: false, paidDate: "", extra: 0, deduct: 0, note: "" };
+  }
+  function salAdjTotal(o) {
+    if (!SAL || SAL.month !== o.month) return 0;
+    var t = 0; Object.keys(SAL.rows).forEach(function (k) { t += (SAL.rows[k].extra || 0) - (SAL.rows[k].deduct || 0); });
+    return Math.round(t * 100) / 100;
+  }
+  function netOf(o, t) { var x = salOf(o, t.name); return Math.round((t.salary + (x.extra || 0) - (x.deduct || 0)) * 100) / 100; }
+  function loadSal() {
+    var month = OV && OV.month;
+    if (!month) return;
+    api("salList", { month: month }).then(function (res) {
+      if (!OV || OV.month !== month) return;
+      SAL = res; renderOverview();
+    }).catch(function (e) { $("pSalNote") && ($("pSalNote").textContent = "⚠ تعذّر تحميل صرف الرواتب: " + e.message); });
+  }
   function renderPay(o) {
     var f = $("pFilter").value, ok = o.teachers.filter(function (t) { return t.ok; });
     var got = ok.filter(function (t) { return t.bonus > 0; });
-    var rows = ok.filter(function (t) { return f === "all" || (f === "yes" ? t.bonus > 0 : !(t.bonus > 0)); });
-    var tot = { s: 0, h: 0, e: 0, a: 0, b: 0, p: 0 };
-    $("pTable").querySelector("tbody").innerHTML = rows.map(function (t) {
-      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.a += t.beforeBonus || 0; tot.b += t.bonus; tot.p += t.salary;
+    var rows = ok.filter(function (t) {
+      var p = salOf(o, t.name).paid;
+      return f === "all" || (f === "yes" ? t.bonus > 0 : f === "no" ? !(t.bonus > 0) : f === "paid" ? p : !p);
+    });
+    var ready = SAL && SAL.month === o.month;
+    var focused = document.activeElement && $("pTable").contains(document.activeElement);
+    if (!focused) $("pTable").querySelector("tbody").innerHTML = rows.map(function (t) {
+      var x = salOf(o, t.name);
       var note = t.bonus > 0 ? '<span class="badge">✓ حصل على الحافز</span>'
         : (t.bonusLimit ? '<span class="badge warn">ينقصه ' + sessionsWord(Math.max(t.bonusLimit - t.sessions, 0)) + "</span>" : "—");
-      return "<tr><td>" + tBtn(t, "data-st") + "</td><td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td><td>" +
-        money(t.beforeBonus) + "</td><td>" + (t.bonusLimit ? sessionsWord(t.bonusLimit) : "—") + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td><td>" + note + "</td></tr>";
-    }).join("") || '<tr><td colspan="9" class="note">لا يوجد معلمون في هذا التصنيف.</td></tr>';
-    $("pTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي (" + rows.length + ")</td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" +
-      money(tot.a) + "</td><td></td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td></td></tr>";
-    var all = ok.reduce(function (a, t) { return a + t.salary; }, 0), bon = got.reduce(function (a, t) { return a + t.bonus; }, 0);
+      var dis = ready ? "" : " disabled";
+      return '<tr data-sal="' + esc(t.name) + '"' + (x.paid ? ' class="sal-paid-row"' : "") + "><td>" + tBtn(t, "data-st") + "</td>" +
+        '<td><label class="sal-chk"><input type="checkbox" data-sf="paid" aria-label="قبض ' + esc(t.name) + '"' + (x.paid ? " checked" : "") + dis + ">" +
+        '<span class="sal-date">' + (x.paid && x.paidDate ? esc(fmtDate(x.paidDate)) : "") + "</span></label></td>" +
+        "<td>" + numf(t.sessions) + "</td><td>" + numf(t.hours, 2) + "</td><td>" + numf(t.evaluations) + "</td><td>" +
+        money(t.beforeBonus) + "</td><td>" + (t.bonus ? money(t.bonus) : "—") + "</td><td><b>" + money(t.salary) + "</b></td>" +
+        '<td><input class="sal-in" data-sf="extra" inputmode="decimal" placeholder="0" value="' + (x.extra || "") + '" aria-label="حافز إضافي ' + esc(t.name) + '"' + dis + "></td>" +
+        '<td><input class="sal-in" data-sf="deduct" inputmode="decimal" placeholder="0" value="' + (x.deduct || "") + '" aria-label="خصم ' + esc(t.name) + '"' + dis + "></td>" +
+        '<td data-net><b>' + money(netOf(o, t)) + "</b></td>" +
+        '<td><input class="sal-note" data-sf="note" maxlength="200" placeholder="اختياري" value="' + esc(x.note || "") + '" aria-label="سبب ' + esc(t.name) + '"' + dis + "></td><td>" + note + "</td></tr>";
+    }).join("") || '<tr><td colspan="13" class="note">لا يوجد معلمون في هذا التصنيف.</td></tr>';
+    payTotals(o, rows, ok, got);
+  }
+  function payTotals(o, rows, ok, got) {
+    var tot = { s: 0, h: 0, e: 0, a: 0, b: 0, p: 0, x: 0, d: 0, n: 0 };
+    rows.forEach(function (t) {
+      var x = salOf(o, t.name);
+      tot.s += t.sessions; tot.h += t.hours; tot.e += t.evaluations; tot.a += t.beforeBonus || 0; tot.b += t.bonus; tot.p += t.salary;
+      tot.x += x.extra || 0; tot.d += x.deduct || 0; tot.n += netOf(o, t);
+    });
+    $("pTable").querySelector("tfoot").innerHTML = "<tr><td>الإجمالي (" + rows.length + ")</td><td></td><td>" + numf(tot.s) + "</td><td>" + numf(tot.h, 2) + "</td><td>" + numf(tot.e) + "</td><td>" +
+      money(tot.a) + "</td><td>" + money(tot.b) + "</td><td>" + money(tot.p) + "</td><td>" + (tot.x ? money(tot.x) : "") + "</td><td>" + (tot.d ? money(tot.d) : "") + "</td><td>" + money(tot.n) + "</td><td></td><td></td></tr>";
+    var all = ok.reduce(function (a, t) { return a + netOf(o, t); }, 0), bon = got.reduce(function (a, t) { return a + t.bonus; }, 0);
+    var paidList = ok.filter(function (t) { return salOf(o, t.name).paid; });
+    var paidSum = paidList.reduce(function (a, t) { return a + netOf(o, t); }, 0);
+    var hrs = ok.reduce(function (a, t) { return a + t.hours; }, 0), gross = ok.reduce(function (a, t) { return a + t.salary; }, 0);
     $("pKpis").innerHTML = [
-      kpi("إجمالي الرواتب", money(all), ok.length + " معلمًا"),
+      kpi("إجمالي الرواتب (الصافي)", money(all), ok.length + " معلمًا"),
+      kpi("المقبوض", paidList.length + " من " + ok.length, "مجموعه " + money(paidSum) + " — المتبقي " + money(all - paidSum), paidList.length < ok.length ? "warn" : ""),
       kpi("حافز الإنترنت", got.length + " من " + ok.length, "مجموعه " + money(bon)),
-      kpi("متوسط الأجر", money(ok.length ? all / ok.length : 0)),
-      kpi("متوسط أجر الساعة", money(ok.reduce(function (a, t) { return a + t.hours; }, 0) ? (all - bon) / ok.reduce(function (a, t) { return a + t.hours; }, 0) : 0), "دون الحافز")
+      kpi("متوسط أجر الساعة", money(hrs ? (gross - bon) / hrs : 0), "دون الحافز")
     ].join("");
   }
+  // حفظ صف معلم في صرف الرواتب عند أي تغيير
+  var salTimers = {};
+  function salSaveRow(tr) {
+    var name = tr.getAttribute("data-sal"), o = OV;
+    function v(k) { return tr.querySelector('[data-sf="' + k + '"]'); }
+    var prev = salOf(o, name), body = { month: o.month, teacher: name, paid: v("paid").checked, extra: v("extra").value, deduct: v("deduct").value, note: v("note").value };
+    tr.classList.add("sal-saving");
+    api("salSave", body).then(function (res) {
+      tr.classList.remove("sal-saving");
+      if (!SAL || SAL.month !== o.month) return;
+      SAL.rows[name] = res.saved;
+      tr.classList.toggle("sal-paid-row", res.saved.paid);
+      tr.querySelector(".sal-date").textContent = res.saved.paid && res.saved.paidDate ? fmtDate(res.saved.paidDate) : "";
+      var t = o.teachers.filter(function (x) { return x.name === name; })[0];
+      if (t) tr.querySelector("[data-net]").innerHTML = "<b>" + money(netOf(o, t)) + "</b>";
+      var f = $("pFilter").value, ok = o.teachers.filter(function (t2) { return t2.ok; });
+      var rows = ok.filter(function (t2) { var p = salOf(o, t2.name).paid; return f === "all" || (f === "yes" ? t2.bonus > 0 : f === "no" ? !(t2.bonus > 0) : f === "paid" ? p : !p); });
+      payTotals(o, rows, ok, ok.filter(function (t2) { return t2.bonus > 0; }));
+      var adj = salAdjTotal(o), r = o.money.report;
+      if (r) { clearTimeout(salTimers.m); salTimers.m = setTimeout(renderOverview, 600); }
+    }).catch(function (e) {
+      tr.classList.remove("sal-saving");
+      showMsg("⚠ لم يُحفظ تعديل " + name + ": " + (e.message || e), false);
+      v("paid").checked = prev.paid; v("extra").value = prev.extra || ""; v("deduct").value = prev.deduct || ""; v("note").value = prev.note || "";
+    });
+  }
+  (function wirePay() {
+    var tb = $("pTable"); if (!tb) return;
+    tb.addEventListener("change", function (e) {
+      var tr = e.target.closest("tr[data-sal]"); if (!tr || !e.target.getAttribute("data-sf") || !OV) return;
+      if (e.target.getAttribute("data-sf") === "paid") {
+        var nm = tr.getAttribute("data-sal");
+        if (!e.target.checked && !window.confirm("إلغاء علامة القبض لـ" + nm + "؟")) { e.target.checked = true; return; }
+      }
+      salSaveRow(tr);
+    });
+    var st = document.createElement("style");
+    st.textContent = "#pTable input.sal-in{width:72px;min-width:0;padding:6px 4px;box-sizing:border-box;text-align:center}#pTable input.sal-note{width:120px;min-width:0;padding:6px;box-sizing:border-box}#pTable td,#pTable th{padding-inline:6px}.sal-chk{display:flex;align-items:center;gap:6px;white-space:nowrap}" +
+      ".sal-chk input{width:20px;height:20px}.sal-date{font-size:11.5px;color:var(--muted)}.sal-paid-row td{background:#eaf6ec}.sal-saving{opacity:.55}";
+    document.head.appendChild(st);
+  })();
   function kpi(k, v, sub, cls) { return '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>"; }
 
   // جدول طلاب معلم: صف واحد لكل طالب يجمع أعمدته (الفردي والمجموعات) بالكود، وطلاب المجموعة الواحدة متجاورون
@@ -1476,7 +1559,7 @@
         zDisarm(); if (p === "zs") zMoneyStu(); else zfMoney();
       });
     });
-    $("aZ").addEventListener("input", function (e) { if (!/^(zQ|zfQ|zcQ)$/.test(e.target.id)) zDisarm(); });
+    $("aZ").addEventListener("input", function (e) { if (!/^(zQ|zfQ|zcQ|zvQ|zpQ|zpNew)$/.test(e.target.id)) zDisarm(); });
     $("zQ").addEventListener("input", function () { $("zRes").innerHTML = zStuHits($("zQ").value, true); });
     $("zRes").addEventListener("click", function (e) { var r = e.target.closest("[data-zc]"); if (r) zPick(r.getAttribute("data-zc")); });
     $("zStopBtn").addEventListener("click", zStop);
@@ -1522,6 +1605,133 @@
     $("zcBtn").addEventListener("click", function () { zCheck(false); });
     $("zcOut").addEventListener("click", function (e) { if (e.target.id === "zcFull") zCheck(true); });
   })();
+  /* ---------- فحص مالي للأسرة، وتعديل باقة الطالب ---------- */
+  (function buildFinPkg() {
+    var seg = $("zSeg"), aZ = $("aZ");
+    if (!seg || !aZ) return;
+    seg.insertAdjacentHTML("beforeend", '<button type="button" data-zm="fin">💰 فحص مالي</button><button type="button" data-zm="pkg">📦 باقة الطالب</button>');
+    aZ.insertAdjacentHTML("beforeend",
+      '<style>#aZ .fin-t{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}#aZ .fin-t th,#aZ .fin-t td{padding:5px 4px;border-top:1px dashed var(--line);text-align:center}#aZ .fin-t td:first-child{text-align:right}' +
+      '#aZ .fin-flag{color:var(--danger);font-size:12px}#aZ .fin-scope{display:flex;flex-direction:column;gap:6px;margin:8px 0}#aZ .fin-scope label{display:flex;gap:6px;align-items:flex-start}</style>' +
+      '<section class="card" id="zFin" hidden><h2>الفحص المالي للأسرة</h2>' +
+      '<div class="field"><label for="zvQ">الأسرة (باسم ولي الأمر أو المعرّف أو اسم طالب)</label><input id="zvQ" type="search" autocomplete="off" placeholder="مثال: أماني أو س.0001"></div>' +
+      '<div id="zvRes"></div><div id="zvOut" class="money" hidden></div>' +
+      '<div class="note">قراءة فقط من «الأسر والطلاب» و«ملخص ماليات الأسر» و«سجل المدفوعات»، ولا يغيّر شيئًا. المجالس المنجزة تُجمَّع من شيتات المعلمين في «تجميع مجالس المعلمين» وقد يتأخر ظهور مجلس اليوم حتى التجميع التالي.</div></section>' +
+      '<section class="card" id="zPkgCard" hidden><h2>تعديل باقة الطالب</h2>' +
+      '<div class="field"><label for="zpQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="zpQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين"></div>' +
+      '<div id="zpRes"></div><div class="picked" id="zpPicked" hidden></div>' +
+      '<div id="zpBox" hidden><div class="field"><label for="zpNew">عدد مجالس الباقة الجديد</label><input id="zpNew" inputmode="decimal" placeholder="مثال: 8"></div>' +
+      '<div class="fin-scope"><label><input type="radio" name="zpScope" value="month" checked><span><b>هذا الشهر فقط</b> — تعود الباقة السابقة عند قفل الشهر.</span></label>' +
+      '<label><input type="radio" name="zpScope" value="always"><span><b>من الآن وما بعده</b> — تبقى الباقة الجديدة في الأشهر القادمة.</span></label></div>' +
+      '<div class="confirm" id="zpConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zpBtn">حفظ الباقة</button></div>' +
+      '<div class="note">يتغير عدد المجالس في «الأسر والطلاب» فتتغير فاتورة الشهر وفق سعر المجلس، ويُسجَّل كل تعديل في تبويب «سجل تعديل الباقات». الفواتير التي أُرسلت للأسرة قبل التعديل لا تتغير وحدها.</div></div></section>');
+
+    function famHits(q) {
+      var w = norm(q).split(" ");
+      return STU.families.filter(function (f) { return w.every(function (x) { return f._k.indexOf(x) !== -1; }); }).slice(0, 8);
+    }
+    $("zvQ").addEventListener("input", function () {
+      var q = $("zvQ").value, box = $("zvRes");
+      if (!norm(q) || !STU) { box.innerHTML = ""; return; }
+      var hits = famHits(q);
+      box.innerHTML = hits.length ? hits.map(function (f) {
+        return '<div class="inv-family-row" data-zv="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد نتائج.</div>';
+    });
+    $("zvRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-zv]"); if (!r) return;
+      finLoad(r.getAttribute("data-zv"));
+    });
+    $("zvOut").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-fcheck],[data-fpkg]"); if (!b) return;
+      if (b.hasAttribute("data-fcheck")) goCheck(b.getAttribute("data-fcheck")); else goPkg(b.getAttribute("data-fpkg"));
+    });
+    function finLoad(fid) {
+      $("zvRes").innerHTML = ""; $("zvQ").value = "";
+      var out = $("zvOut"); out.hidden = false; out.textContent = "جارٍ فحص الحالة المالية…";
+      api("famFin", { familyId: fid }).then(finRender).catch(function (e) { out.textContent = "⚠ " + e.message; });
+    }
+    function finRender(r) {
+      var f = r.family, usd = f && f.usd, pm = function (n) { return pmoney(n, usd); };
+      var h = '<div class="verdict ' + (r.warnings.length || r.kids.some(function (k) { return k.flags.length; }) ? "yellow" : "green") + '">' +
+        (r.warnings.length || r.kids.some(function (k) { return k.flags.length; }) ? "🟡 توجد ملاحظات للمراجعة" : "🟢 لا فروق ظاهرة") + "</div>";
+      h += "<b>" + esc(f ? f.name : r.familyId) + "</b> — " + esc(r.familyId) + " — " + esc(r.month);
+      if (f) {
+        h += zLn("فاتورة الشهر (الملخص)", pm(f.invoice)) + zLn("المدفوع عن الشهر", pm(f.paid)) +
+          zLn("رصيد مالي من الشهر السابق", pm(f.prior)) +
+          zLn("قيمة المجالس المنجزة فعلًا", pm(r.sumConsumed)) +
+          zLn("حالة السداد", esc(f.status || "—")) +
+          '<div class="ln res ' + zCls(f.remaining) + '"><span>المتبقي</span><b>' + zBal(f.remaining, usd) + "</b></div>" +
+          zLn("تقدير فاتورة الشهر القادم", pm(f.nextEstimate));
+      }
+      r.warnings.forEach(function (w) { h += '<div class="note" style="color:var(--danger);margin-top:4px">⚠ ' + esc(w) + "</div>"; });
+      h += '<div class="chk-h">الطلاب: الفاتورة مقابل المجالس الفعلية</div><div style="overflow-x:auto"><table class="fin-t"><tr><th>الطالب</th><th>الباقة</th><th>أنجز</th><th>المتبقي</th><th>مرحّل</th><th>الفاتورة</th><th></th></tr>';
+      r.kids.forEach(function (k) {
+        h += "<tr><td><b>" + esc(k.name) + "</b>" + (k.active ? "" : " <small>(متوقف)</small>") + "<br><small>" + esc(k.code) + (k.teachers ? " — " + esc(k.teachers) : "") + "</small>" +
+          k.flags.map(function (x) { return '<div class="fin-flag">⚠ ' + esc(x) + "</div>"; }).join("") + "</td>" +
+          "<td>" + numf(k.pkg, 2) + "</td><td>" + numf(k.done, 2) + "</td><td>" + numf(k.left, 2) + "</td><td>" + (k.carriedN ? numf(k.carriedN, 2) : "—") + "</td><td>" + pm(k.invoice) + "</td>" +
+          '<td style="white-space:nowrap"><button type="button" class="ghost small" data-fcheck="' + esc(k.code) + '" title="فحص في شيتات المعلمين">🔎</button> <button type="button" class="ghost small" data-fpkg="' + esc(k.code) + '" title="تعديل الباقة">📦</button></td></tr>';
+      });
+      h += "</table></div>";
+      h += '<div class="chk-h">آخر الدفعات</div>' + (r.payments.length ? r.payments.map(function (p) {
+        return '<div class="evt"><span>' + esc(p.date ? (/^\d{4}-\d{2}-\d{2}$/.test(p.date) ? fmtDate(p.date) : p.date) : "—") + "</span><span>" + esc(p.month) + (p.method ? " — " + esc(p.method) : "") + (p.note ? " — " + esc(p.note) : "") + "</span><b>" + pm(p.amount) + "</b></div>";
+      }).join("") : '<div class="note">لا توجد دفعات مسجَّلة لهذه الأسرة.</div>');
+      $("zvOut").innerHTML = h; $("zvOut").hidden = false;
+    }
+    // من نتيجة الفحص المالي إلى فحص الطالب في شيتات المعلمين
+    function goCheck(code) {
+      var s = STU && STU.students.filter(function (x) { return x.code === code; })[0]; if (!s) return;
+      zMode("check"); zCSt = s;
+      $("zcRes").innerHTML = ""; $("zcQ").value = "";
+      $("zcPicked").innerHTML = "<b>" + esc(s.name) + "</b> — " + esc(s.code) + "<br><small>ولي الأمر: " + esc(s.parent) + (s.teachers ? " — لدى: " + esc(s.teachers) : "") + "</small>";
+      $("zcPicked").hidden = false; $("zcBtn").hidden = false; $("zcOut").hidden = true;
+      zCheck(false);
+    }
+
+    /* باقة الطالب */
+    var pk = null, pkArmed = false;
+    function pkDisarm() { pkArmed = false; $("zpConfirm").hidden = true; $("zpBtn").textContent = "حفظ الباقة"; $("zpBtn").classList.remove("confirming"); }
+    $("zpQ").addEventListener("input", function () {
+      var q = $("zpQ").value, box = $("zpRes");
+      if (!norm(q) || !STU) { box.innerHTML = ""; return; }
+      var w = norm(q).split(" ");
+      var hits = STU.students.filter(function (s) { return w.every(function (x) { return s._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (s) {
+        return '<div class="inv-family-row" data-zp="' + esc(s.code) + '"><span class="inv-fname"><b>' + esc(s.name) + "</b><br><small>" + esc(s.code) + " — " + esc(s.parent) + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد نتائج.</div>';
+    });
+    $("zpRes").addEventListener("click", function (e) { var r = e.target.closest("[data-zp]"); if (r) pkLoad(r.getAttribute("data-zp")); });
+    function goPkg(code) { zMode("pkg"); pkLoad(code); }
+    function pkLoad(code) {
+      $("zpRes").innerHTML = ""; $("zpQ").value = ""; pkDisarm();
+      var p = $("zpPicked"); p.hidden = false; p.textContent = "جارٍ التحميل…"; $("zpBox").hidden = true;
+      api("pkgGet", { code: code }).then(function (d) {
+        pk = d;
+        p.innerHTML = "<b>" + esc(d.name) + "</b> — " + esc(d.code) + "<br><small>ولي الأمر: " + esc(d.parent) + (d.teachers ? " — لدى: " + esc(d.teachers) : "") + "</small>" +
+          zLn("الباقة الحالية (" + esc(d.month) + ")", hs(d.pkg)) + zLn("المنجز", hs(d.done)) + zLn("سعر المجلس", pmoney(d.rate)) + zLn("فاتورة الشهر", pmoney(d.invoice)) +
+          (d.monthly !== null ? zLn("الباقة الشهرية المحفوظة", hs(d.monthly)) : "");
+        $("zpNew").value = d.pkg; $("zpBox").hidden = false;
+        if (!d.hasMonthlyCol) document.querySelector('input[name="zpScope"][value="always"]').checked = true;
+      }).catch(function (e) { p.textContent = "⚠ " + e.message; });
+    }
+    $("zpBox").addEventListener("input", pkDisarm);
+    $("zpBox").addEventListener("change", pkDisarm);
+    $("zpBtn").addEventListener("click", function () {
+      if (!pk) return;
+      var n = Number(digits($("zpNew").value));
+      if (isNaN(n) || $("zpNew").value.trim() === "" || n < 0 || n > 200) return showMsg("اكتب عدد مجالس صحيحًا بين 0 و200.", false);
+      var scope = document.querySelector('input[name="zpScope"]:checked').value;
+      if (!pkArmed) {
+        pkArmed = true;
+        $("zpConfirm").textContent = "ستصير باقة " + pk.name + " " + hs(n) + " بدل " + hs(pk.pkg) + (scope === "month" ? " لهذا الشهر فقط" : " من الآن وما بعده") + ". اضغط مرة أخرى للتأكيد.";
+        $("zpConfirm").hidden = false; $("zpBtn").textContent = "تأكيد"; $("zpBtn").classList.add("confirming"); return;
+      }
+      var b = $("zpBtn"); b.disabled = true; b.textContent = "جارٍ الحفظ…";
+      api("pkgSet", { code: pk.code, pkg: n, scope: scope }).then(function (res) {
+        b.disabled = false; pkDisarm(); showMsg("✓ " + res.message, true); STU = null; pkLoad(pk.code);
+      }).catch(function (e) { b.disabled = false; pkDisarm(); showMsg("⚠ " + e.message, false); });
+    });
+  })();
   function zEnsure(cb) {
     if (STU) { $("zLoading").hidden = true; return cb(); }
     $("zLoading").hidden = false; $("zLoading").textContent = "جارٍ تحميل الطلاب والأسر…";
@@ -1531,9 +1741,9 @@
   function zMode(m) {
     zCur = m; clearMsg(); zDisarm();
     $("zSeg").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-zm") === m); });
-    ["zStu", "zFamCard", "zTch", "zChk"].forEach(function (k) { $(k).hidden = true; });
+    ["zStu", "zFamCard", "zTch", "zChk", "zFin", "zPkgCard"].forEach(function (k) { $(k).hidden = true; });
     if (m === "teacher") { $("zLoading").hidden = true; $("zTch").hidden = false; return loadTch(); }
-    zEnsure(function () { $({ student: "zStu", family: "zFamCard", check: "zChk" }[m]).hidden = false; });
+    zEnsure(function () { $({ student: "zStu", family: "zFamCard", check: "zChk", fin: "zFin", pkg: "zPkgCard" }[m]).hidden = false; });
   }
   function zSetWhen(p, w) { $(p + "When").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x.getAttribute("data-w") === w); }); }
   function zWhen(p) { var b = $(p + "When").querySelector("button.on"); return b ? b.getAttribute("data-w") : "next"; }
