@@ -903,7 +903,7 @@
       salSaveRow(tr);
     });
     var st = document.createElement("style");
-    st.textContent = "#pTable input.sal-in{width:72px;min-width:0;padding:6px 4px;box-sizing:border-box;text-align:center}#pTable input.sal-note{width:120px;min-width:0;padding:6px;box-sizing:border-box}#pTable td,#pTable th{padding-inline:6px}.sal-chk{display:flex;align-items:center;gap:6px;white-space:nowrap}" +
+    st.textContent = "#pTable input.sal-in{width:62px;min-width:0;padding:6px 4px;box-sizing:border-box;text-align:center}#pTable input.sal-note{width:96px;min-width:0;padding:6px;box-sizing:border-box}#pTable td,#pTable th{padding-inline:4px}#pTable{font-size:13px}.sal-chk{display:flex;align-items:center;gap:6px;white-space:nowrap}" +
       ".sal-wrap{display:flex;align-items:center;gap:4px}.sal-wrap b{font-size:18px;width:14px;text-align:center}.sal-wrap.plus b{color:#1e6b34}.sal-wrap.minus b{color:#a12a2a}#pTable .sal-wrap.plus input{border-color:#9ccfa7}#pTable .sal-wrap.minus input{border-color:#e3a5a5}.sal-chk input{width:20px;height:20px}.sal-date{font-size:11.5px;color:var(--muted)}.sal-paid-row td{background:#eaf6ec}.sal-saving{opacity:.55}";
     document.head.appendChild(st);
   })();

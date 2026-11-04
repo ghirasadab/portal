@@ -60,12 +60,13 @@ h2 { font-size: 14px; color: var(--green); margin: 16px 0 8px; font-weight: 700;
 
 /* التخطيط */
 .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
-.layout { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+.layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+.layout > * { min-width: 0; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
 .side { position: sticky; top: 74px; max-height: calc(100vh - 90px); overflow: auto; }
 .side h2:first-of-type { margin-top: 0; }
 @media (max-width: 860px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
   .side { position: static; max-height: none; }
   .layout.picked .side { display: none; }
   .layout:not(.picked) .main { display: none; }
@@ -176,7 +177,9 @@ html.ga-dark .tab.on { color: #0b2210; }
 .kpi.hl { background: var(--mint); }
 .kpi.warn .v { color: var(--orange); }
 #adminView .card { margin-bottom: 14px; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+#pTable td:first-child, #pTable th:first-child { position: sticky; inset-inline-start: 0; background: var(--card); z-index: 1; }
+#pTable .sal-paid-row td:first-child { background: #eaf6ec; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .tbl th { text-align: right; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 6px 8px; border-bottom: 1.5px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 7px 8px; border-bottom: 1px dashed var(--line); white-space: nowrap; }
