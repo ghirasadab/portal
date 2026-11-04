@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
+    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stuCheck|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -1579,7 +1579,44 @@
       if (stPick === st) suPick(st.code);
     });
   }
+  // قبل الإضافة لمعلم: هل أنشأ المعلم عمودًا للطالب بلا كود؟ فيُسأل المدير: يُكمل ذلك العمود أم يُضاف عمود جديد
+  function fillAsk(c, teacher, cb) {
+    var ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+    var many = c.candidates.length > 1;
+    ov.innerHTML = '<div class="card" role="dialog" aria-modal="true" style="max-width:460px;width:100%;max-height:85vh;overflow:auto">' +
+      '<h3 style="margin-top:0">' + (many ? "وُجدت أعمدة" : "وُجد عمود") + " بهذا الاسم عند " + esc(teacher) + " بلا كود</h3>" +
+      '<div class="note">في تبويب «' + esc(c.label) + '». إكمال العمود يكتب الناقص فقط (الكود وغيره) ولا يلمس الحصص المسجّلة.</div>' +
+      c.candidates.map(function (x, i) {
+        return '<label class="chk" style="display:block;margin:8px 0"><input type="radio" name="fillCol" value="' + x.col + '"' + (i === 0 ? " checked" : "") + "> العمود <b>" + esc(x.letter) + "</b> — " + esc(x.name) +
+          " — مجالس مسجّلة: <b>" + numf(x.sessions) + "</b>" + (x.parent ? " — ولي الأمر: " + esc(x.parent) : "") + (x.category ? " — " + esc(x.category) : "") + "</label>";
+      }).join("") +
+      '<div class="actions min-row" style="flex-wrap:wrap;margin-top:12px"><button type="button" class="primary" data-a="fill">أكمل ' + (many ? "العمود المختار" : "هذا العمود") + '</button>' +
+      '<button type="button" class="ghost" data-a="new">أضف عمودًا جديدًا</button><button type="button" class="ghost" data-a="cancel">إلغاء</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) {
+      var a = e.target.getAttribute && e.target.getAttribute("data-a"); if (!a) return;
+      var r = ov.querySelector("input[name=fillCol]:checked"), col = r ? r.value : "";
+      document.body.removeChild(ov); cb(a, col);
+    });
+  }
+  function fillCheck(p, go, abort) {
+    if (p.fillChecked || !p.teacher || !(p.code || p.name)) return go();
+    api("stuCheck", { code: p.code || "", name: p.name || "", teacher: p.teacher }).then(function (c) {
+      if (!c || !c.candidates || !c.candidates.length) { p.fillChecked = 1; return go(); }
+      fillAsk(c, p.teacher, function (a, col) {
+        if (a === "cancel") return abort();
+        p.fillChecked = 1; if (a === "fill") p.fillCol = col; go();
+      });
+    }).catch(function (e) {
+      if (window.confirm("تعذّر فحص أعمدة المعلم (" + String(e.message || e) + ").\nالمتابعة بإضافة عمود جديد؟")) { p.fillChecked = 1; go(); } else abort();
+    });
+  }
   function stSend(action, p, btn, attempt, done) {
+    if (attempt === 1 && !p.fillChecked && /^(stuAdd|stuMove|stuRegister)$/.test(action) && p.teacher) {
+      stBusy = true; $(btn).disabled = true; $(btn).textContent = "جارٍ فحص أعمدة المعلم…";
+      return fillCheck(p, function () { stBusy = false; $(btn).disabled = false; stSend(action, p, btn, 1, done); }, function () { stBusy = false; $(btn).disabled = false; stDisarm(); });
+    }
     stBusy = true; $(btn).disabled = true; $(btn).classList.remove("confirming");
     $(btn).textContent = attempt > 1 ? "الشيت مشغول… جارٍ إعادة المحاولة (" + attempt + ")" : "جارٍ التنفيذ… قد يستغرق ذلك دقيقة";
     api(action, p).then(function (r) {
@@ -2386,7 +2423,9 @@
     if (!p.teacher) return showMsg("⚠ اختر المعلم.", false);
     if (p.package !== "" && p.startDate && !(p.firstDays || p.days)) return showMsg("⚠ اكتب أيام الدرس لحساب مجالس هذا الشهر، أو أفرغ تاريخ أول مجلس لتسجيل الباقة كاملة.", false);
     if ((mode === "join" && !p.groupStart) || (mode === "pair" && !p.pairCode)) return showMsg("⚠ اختر " + (mode === "join" ? "المجموعة" : "الطالب الفردي") + ".", false);
-    btn.disabled = true; btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
+    btn.disabled = true; btn.textContent = "جارٍ فحص أعمدة المعلم…";
+    fillCheck(p, function () {
+    btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
     api("evalRegister", p).then(function (r) {
       var x = EV.evals.filter(function (y) { return y.id === p.id; })[0];
       x.status = "وُزّع"; x.assigned = p.teacher; x.assignNote = "الكود " + r.code;
@@ -2395,6 +2434,7 @@
         (r.firstMonth.sessions < r.firstMonth.monthly ? "، وتعود الباقة الشهرية كاملة بعد قفل الشهر." : "") : "";
       showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message + fmTxt + (r.wa ? "\n" + waNote(r.wa) : ""), true);
     }).catch(function (e) { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; showMsg("⚠ " + e.message, false); });
+    }, function () { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; });
   }
 
   function archSearch() {
