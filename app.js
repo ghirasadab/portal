@@ -2527,6 +2527,10 @@
     invSentOnlyBtn.addEventListener("click", function () { invSentOnly = !invSentOnly; renderInvoiceList(); });
   }
 
+  // ترتيب قائمة الفواتير: لم تُرسل (عليها مبلغ) ثم أُرسلت ولم تُسدَّد ثم المسدَّدة، وفي كل قسم أبجديًا دون «أ. »
+  var INV_RANK_LBL = ["لم تُرسل", "أُرسلت ولم تُسدَّد", "مسدَّدة"];
+  function invRank(f) { return !(f.remaining > 0) ? 2 : (f.sent ? 1 : 0); }
+  function invKey(n) { return String(n || "").replace(/^\s*(أ|د|م)\s*\.\s*/, "").replace(/[أإآٱ]/g, "ا").trim(); }
   function renderInvoiceList() {
     if (!INV || !INV.families) return;
     var q = invSearchInput ? invSearchInput.value.trim() : "";
@@ -2540,13 +2544,17 @@
       if (f.sent && !showSent) { hiddenSent++; return false; }
       if (only && only.indexOf(String(f.code)) === -1) return false;
       return !q || String(f.name).indexOf(q) !== -1;
-    }).map(function (f) {
+    }).sort(function (a, b) {
+      var d = invRank(a) - invRank(b);
+      return d || invKey(a.name).localeCompare(invKey(b.name), "ar");
+    }).map(function (f, i, arr) {
       var cr = f.remaining < 0;
+      var head = !i || invRank(arr[i - 1]) !== invRank(f) ? '<div class="note" style="font-weight:700;margin-top:8px">' + INV_RANK_LBL[invRank(f)] + "</div>" : "";
       var amt = f.remaining
         ? '<span class="inv-rem"' + (cr ? ' style="color:var(--ok)"' : '') + '>' + (cr ? "لها " : "عليها ") + fmt(Math.abs(f.remaining)) + ' ' + esc(f.currency || "ج") + '</span>'
         : '<span class="inv-rem" style="color:var(--muted)">مسدّد</span>';
       var sentTag = f.sent ? ' <span class="note">✔ أُرسلت</span> <button type="button" class="link-btn inv-unsent" data-code="' + esc(f.code) + '">إلغاء</button>' : "";
-      return '<label class="inv-family-row due">' +
+      return head + '<label class="inv-family-row due">' +
         '<input type="checkbox" class="inv-chk" data-code="' + esc(f.code) + '" data-rem="' + Number(f.remaining || 0) + '"> ' +
         '<span class="inv-fname">' + esc(f.name) + sentTag + '</span>' +
         amt +
