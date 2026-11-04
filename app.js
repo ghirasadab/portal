@@ -720,6 +720,12 @@
       return f === "all" || (f === "yes" ? t.bonus > 0 : f === "no" ? !(t.bonus > 0) : f === "paid" ? p : !p);
     });
     var ready = SAL && SAL.month === o.month;
+    // رأس الجدول يُبنى هنا بنفس ترتيب خلايا الصفوف حتى لا يختلف عنها مهما كانت نسخة index.html المخزّنة في المتصفح
+    var th = $("pTable").querySelector("thead tr");
+    if (th && !th.getAttribute("data-v")) {
+      th.setAttribute("data-v", "2");
+      th.innerHTML = ["المعلم", "قبض", "المجالس", "الساعات", "التقييمات", "الأجر قبل الحافز", "حافز الإنترنت", "إجمالي الأجر", "حافز إضافي", "خصم", "الصافي", "السبب", "ملاحظة"].map(function (h) { return "<th>" + h + "</th>"; }).join("");
+    }
     var focused = document.activeElement && $("pTable").contains(document.activeElement);
     if (!focused) $("pTable").querySelector("tbody").innerHTML = rows.map(function (t) {
       var x = salOf(o, t.name);
