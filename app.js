@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
+    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stuCheck|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -56,6 +56,13 @@
     return String(s || "").replace(/[ً-ْٰ]/g, "").replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه")
       .replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x0660; }).replace(/\s+/g, " ").trim().toLowerCase();
   }
+  // رقم واتساب ولي الأمر: أرقام فقط، 00 تُحذف، و01xxxxxxxxx يصير 201xxxxxxxxx
+  function waNorm(s) {
+    var d = String(s || "").replace(/[٠-٩]/g, function (c) { return c.charCodeAt(0) - 0x0660; }).replace(/\D/g, "").replace(/^00/, "");
+    return /^01\d{9}$/.test(d) ? "2" + d : d;
+  }
+  function waBad(s) { var d = waNorm(s); return !d ? "اكتب رقم واتساب ولي الأمر (بالرمز الدولي، مثل 201012345678)." : (d.length < 10 || d.length > 15 ? "رقم واتساب ولي الأمر غير صحيح، راجعه (بالرمز الدولي، 10 إلى 15 رقمًا)." : ""); }
+  function waNote(w) { return !w ? "" : w.error ? "⚠ تعذّر حفظ رقم الواتساب: " + w.error : w.status === "kept" ? "⚠ للأسرة رقم محفوظ (" + w.phone + ") يختلف عمّا كتبته فلم يُغيَّر، عدّله من تبويب «أرقام واتساب الأسر» إن لزم." : "✓ حُفظ رقم الواتساب " + w.phone + " في «أرقام واتساب الأسر»."; }
   function digits(s) { return String(s || "").replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x0660; }).replace(/[٫,]/g, ".").trim(); }
   function showMsg(text, ok) { var m = $("msg"); m.textContent = text; m.className = "msg " + (ok ? "ok" : "err"); m.hidden = false; window.scrollTo({ top: 0, behavior: "smooth" }); }
   function clearMsg() { $("msg").hidden = true; }
@@ -1308,7 +1315,7 @@
       '<div class="field"><label for="snAge">العمر (اختياري)</label><input id="snAge" placeholder="مثال: 9 سنوات"></div></div>' +
       '<div class="field"><label>الأسرة</label><div class="seg" id="snFamSeg"><button type="button" class="on" data-fk="old">أسرة موجودة</button><button type="button" data-fk="new">أسرة جديدة</button></div></div>' +
       '<div id="snFamOld"><input id="snFamQ" type="search" autocomplete="off" placeholder="ابحث باسم ولي الأمر أو المعرّف أو اسم طالب" style="width:100%;margin-top:8px"><div id="snFamRes"></div><div class="note" id="snFamPicked" hidden></div></div>' +
-      '<div id="snFamNew" hidden><input id="snParent" placeholder="اسم ولي الأمر كما سيُكتب في الشيت" style="width:100%;margin-top:8px"><div class="note">يُولَّد المعرّف (س.) تلقائيًا، ويُضاف «أ. » قبل الاسم.</div></div>' +
+      '<div id="snFamNew" hidden><input id="snParent" placeholder="اسم ولي الأمر كما سيُكتب في الشيت" style="width:100%;margin-top:8px"><div class="note">يُولَّد المعرّف (س.) تلقائيًا، ويُضاف «أ. » قبل الاسم.</div><label for="snPhone" style="display:block;margin-top:8px">رقم واتساب ولي الأمر (مطلوب)</label><input id="snPhone" inputmode="tel" placeholder="مثال: 201012345678" style="width:100%"><div class="note">منه يُولَّد رابط إرسال الفاتورة.</div></div>' +
       '<div class="row2"><div class="field"><label for="snPkg">الباقة الشهرية</label><input id="snPkg" inputmode="decimal" placeholder="عدد المجالس، مثال: 8"></div>' +
       '<div class="field"><label for="snPrice">سعر المجلس</label><input id="snPrice" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
       '<div class="row2"><div class="field"><label for="snStart">تاريخ أول مجلس</label><input id="snStart" type="date"></div>' +
@@ -1365,7 +1372,7 @@
     $("aStu").addEventListener("input", function (e) { if (e.target.id !== "suQ" && e.target.id !== "snFamQ") stDisarm(); });
     $("snSave").addEventListener("click", stRegister);
     $("stDoneAgain").addEventListener("click", function () {
-      ["snName", "snAge", "snParent", "snPkg", "snPrice", "snPDays", "snFee", "snCat", "snDays"].forEach(function (k) { $(k).value = ""; });
+      ["snName", "snAge", "snParent", "snPhone", "snPkg", "snPrice", "snPDays", "snFee", "snCat", "snDays"].forEach(function (k) { $(k).value = ""; });
       $("snStart").value = (AD && AD.today) || ""; $("snTeacher").value = ""; $("snMode").value = "single"; $("snRate").value = 70;
       stFam = null; $("snFamPicked").hidden = true; stInfo = null; stModeUI("sn");
       $("stDone").hidden = true; $("stNew").hidden = false; $("snPrev").textContent = "اكتب الباقة وتاريخ أول مجلس وأيام الدرس، فيُحسب عدد مجالس هذا الشهر وفاتورته. اترك التاريخ فارغًا لتسجيل الباقة كاملة.";
@@ -1497,18 +1504,20 @@
     var pkg = digits($("snPkg").value), price = digits($("snPrice").value), start = $("snStart").value, pdays = $("snPDays").value.trim(), fee = digits($("snFee").value);
     if (!name) return showMsg("⚠ اكتب اسم الطالب.", false);
     if (!parent) return showMsg(isNew ? "⚠ اكتب اسم ولي الأمر." : "⚠ اختر الأسرة من القائمة، أو اختر «أسرة جديدة».", false);
+    var wa = isNew ? waNorm($("snPhone").value) : "";
+    if (isNew && waBad(wa)) return showMsg("⚠ " + waBad(wa), false);
     if (price === "" || isNaN(Number(price))) return showMsg("⚠ اكتب سعر المجلس (0 إن كان تطوّعًا).", false);
     if (pkg !== "" && isNaN(Number(pkg))) return showMsg("⚠ يجب أن تكون الباقة رقمًا.", false);
     if (pkg !== "" && start && !pdays) return showMsg("⚠ اكتب أيام الدرس لحساب مجالس هذا الشهر، أو أفرغ تاريخ أول مجلس لتسجيل الباقة كاملة.", false);
     if (fee !== "" && (isNaN(Number(fee)) || Number(fee) < 0)) return showMsg("⚠ يجب أن تكون رسوم التقييم رقمًا.", false);
     var u = stUnitData("sn");
     if (u.teacher) { var bad = stUnitCheck("sn", u); if (bad) return showMsg("⚠ " + bad, false); }
-    var key = [name, $("snAge").value.trim(), parent, isNew, pkg, price, start, pdays, fee, JSON.stringify(u)].join("|");
+    var key = [name, $("snAge").value.trim(), parent, wa, isNew, pkg, price, start, pdays, fee, JSON.stringify(u)].join("|");
     if (!stArm("snSave", "snConfirm", key, "سيُسجَّل " + name + " لدى " + (isNew ? "أسرة جديدة: " : "") + parent + "، الباقة الشهرية " + (pkg || "—") + "، سعر المجلس " +
       (Number(price) === 0 ? "0 (تطوّع)" : price) + (fee ? "، ورسوم التقييم المدفوعة " + fee + " تُضاف رصيدًا للأسرة" : "") +
       (u.teacher ? "، ثم يُضاف إلى " + u.teacher + " (" + stUnitTxt("sn", u) + ")." : "، دون إضافته إلى معلم."))) return;
     if (stRegKey !== key) { stRegKey = key; stRegTok = stTok(); }
-    var p = { name: name, age: $("snAge").value.trim(), parent: parent, newFamily: isNew, package: pkg, price: price, startDate: start, firstDays: pdays, evalFee: fee, regToken: stRegTok };
+    var p = { name: name, age: $("snAge").value.trim(), parent: parent, newFamily: isNew, package: pkg, price: price, startDate: start, firstDays: pdays, evalFee: fee, regToken: stRegTok, waPhone: wa };
     Object.keys(u).forEach(function (k) { p[k] = u[k]; });
     stSend("stuRegister", p, "snSave", 1, function (r) {
       stRegKey = "";
@@ -1525,7 +1534,7 @@
         (g.diffs && g.diffs.length ? "<br>⚠ تختلف عمّا كتبته ولم تُغيَّر: " + esc(g.diffs.join("، ")) + "، فعدّلها من الشيت إن لزم." : "") + "</div>";
       h += "<b>" + esc(g.name) + "</b><br>كود الطالب: <b>" + esc(g.code) + "</b><br>ولي الأمر: " + esc(g.parent) + " — <b>" + esc(g.familyId) + "</b>" +
         (fm && fm.applies ? "<br>مجالس هذا الشهر: <b>" + esc(fm.sessions) + "</b> من " + esc(fm.monthly) + " (فاتورته " + esc(fm.total) + ")" + (fm.sessions < fm.monthly ? "، وتعود الباقة الشهرية كاملة بعد قفل الشهر." : "") : "") +
-        (g.evalFee ? "<br>رسوم التقييم: <b>" + esc(g.evalFee) + "</b> أُضيفت رصيدًا للأسرة." : "") + (g.evalFeeError ? "<br>⚠ " + esc(g.evalFeeError) : "");
+        (r.wa ? "<br>" + esc(waNote(r.wa)) : "") + (g.evalFee ? "<br>رسوم التقييم: <b>" + esc(g.evalFee) + "</b> أُضيفت رصيدًا للأسرة." : "") + (g.evalFeeError ? "<br>⚠ " + esc(g.evalFeeError) : "");
       if (r.message) h += '<div class="note" style="white-space:pre-line">' + esc(r.message) + "</div>";
       if (r.addError) h += '<div class="confirm">⚠ سُجّل الطالب لكن لم يُضَف إلى ' + esc(u.teacher) + ": " + esc(r.addError) + "<br>اضغط «إضافته إلى معلم الآن» للمحاولة مرة أخرى.</div>";
       $("stDoneTxt").innerHTML = h;
@@ -1570,7 +1579,44 @@
       if (stPick === st) suPick(st.code);
     });
   }
+  // قبل الإضافة لمعلم: هل أنشأ المعلم عمودًا للطالب بلا كود؟ فيُسأل المدير: يُكمل ذلك العمود أم يُضاف عمود جديد
+  function fillAsk(c, teacher, cb) {
+    var ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+    var many = c.candidates.length > 1;
+    ov.innerHTML = '<div class="card" role="dialog" aria-modal="true" style="max-width:460px;width:100%;max-height:85vh;overflow:auto">' +
+      '<h3 style="margin-top:0">' + (many ? "وُجدت أعمدة" : "وُجد عمود") + " بهذا الاسم عند " + esc(teacher) + " بلا كود</h3>" +
+      '<div class="note">في تبويب «' + esc(c.label) + '». إكمال العمود يكتب الناقص فقط (الكود وغيره) ولا يلمس الحصص المسجّلة.</div>' +
+      c.candidates.map(function (x, i) {
+        return '<label class="chk" style="display:block;margin:8px 0"><input type="radio" name="fillCol" value="' + x.col + '"' + (i === 0 ? " checked" : "") + "> العمود <b>" + esc(x.letter) + "</b> — " + esc(x.name) +
+          " — مجالس مسجّلة: <b>" + numf(x.sessions) + "</b>" + (x.parent ? " — ولي الأمر: " + esc(x.parent) : "") + (x.category ? " — " + esc(x.category) : "") + "</label>";
+      }).join("") +
+      '<div class="actions min-row" style="flex-wrap:wrap;margin-top:12px"><button type="button" class="primary" data-a="fill">أكمل ' + (many ? "العمود المختار" : "هذا العمود") + '</button>' +
+      '<button type="button" class="ghost" data-a="new">أضف عمودًا جديدًا</button><button type="button" class="ghost" data-a="cancel">إلغاء</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) {
+      var a = e.target.getAttribute && e.target.getAttribute("data-a"); if (!a) return;
+      var r = ov.querySelector("input[name=fillCol]:checked"), col = r ? r.value : "";
+      document.body.removeChild(ov); cb(a, col);
+    });
+  }
+  function fillCheck(p, go, abort) {
+    if (p.fillChecked || !p.teacher || !(p.code || p.name)) return go();
+    api("stuCheck", { code: p.code || "", name: p.name || "", teacher: p.teacher }).then(function (c) {
+      if (!c || !c.candidates || !c.candidates.length) { p.fillChecked = 1; return go(); }
+      fillAsk(c, p.teacher, function (a, col) {
+        if (a === "cancel") return abort();
+        p.fillChecked = 1; if (a === "fill") p.fillCol = col; go();
+      });
+    }).catch(function (e) {
+      if (window.confirm("تعذّر فحص أعمدة المعلم (" + String(e.message || e) + ").\nالمتابعة بإضافة عمود جديد؟")) { p.fillChecked = 1; go(); } else abort();
+    });
+  }
   function stSend(action, p, btn, attempt, done) {
+    if (attempt === 1 && !p.fillChecked && /^(stuAdd|stuMove|stuRegister)$/.test(action) && p.teacher) {
+      stBusy = true; $(btn).disabled = true; $(btn).textContent = "جارٍ فحص أعمدة المعلم…";
+      return fillCheck(p, function () { stBusy = false; $(btn).disabled = false; stSend(action, p, btn, 1, done); }, function () { stBusy = false; $(btn).disabled = false; stDisarm(); });
+    }
     stBusy = true; $(btn).disabled = true; $(btn).classList.remove("confirming");
     $(btn).textContent = attempt > 1 ? "الشيت مشغول… جارٍ إعادة المحاولة (" + attempt + ")" : "جارٍ التنفيذ… قد يستغرق ذلك دقيقة";
     api(action, p).then(function (r) {
@@ -2278,6 +2324,7 @@
       '<div class="field"><label>العمر</label><input class="rf-age" value="' + esc(x.age || "") + '"></div></div>' +
       '<div class="field"><label>ولي الأمر</label><input class="rf-parent" list="rfFamilies" placeholder="اكتب اسم ولي الأمر أو اختر أسرة مسجَّلة">' +
       '<label class="chk"><input type="checkbox" class="rf-new"> أسرة جديدة</label></div>' +
+      '<div class="field"><label>رقم واتساب ولي الأمر (مطلوب للأسرة الجديدة)</label><input class="rf-wa" inputmode="tel" placeholder="مثال: 201012345678"></div>' +
       '<div class="row2"><div class="field"><label>الباقة الشهرية (عدد المجالس)</label><input class="rf-pkg" inputmode="decimal"></div>' +
       '<div class="field"><label>سعر المجلس</label><input class="rf-price" inputmode="decimal" placeholder="0 = تطوّع"></div></div>' +
       '<div class="row2"><div class="field"><label>تاريخ أول مجلس</label><input class="rf-start" type="date" value="' + esc((AD && AD.today) || "") + '"></div>' +
@@ -2367,23 +2414,27 @@
     var mode = q(".rf-mode"), p = { id: it.getAttribute("data-id"), name: q(".rf-name"), age: q(".rf-age"), parent: q(".rf-parent"),
       newFamily: f.querySelector(".rf-new").checked, package: q(".rf-pkg"), price: q(".rf-price"), teacher: q(".rf-teacher"), mode: mode,
       category: q(".rf-cat"), days: q(".rf-days"), rate: q(".rf-rate"), note: it.querySelector(".evN").value,
-      startDate: q(".rf-start"), firstDays: q(".rf-pdays") };
+      startDate: q(".rf-start"), firstDays: q(".rf-pdays"), waPhone: waNorm(q(".rf-wa")) };
     if (mode === "join") p.groupStart = q(".rf-target");
     if (mode === "pair") p.pairCode = q(".rf-target");
     if (!p.parent) return showMsg("⚠ اكتب اسم ولي الأمر.", false);
+    if (p.newFamily && waBad(p.waPhone)) return showMsg("⚠ " + waBad(p.waPhone), false);
     if (p.price === "") return showMsg("⚠ اكتب سعر المجلس (0 إن كان تطوّعًا).", false);
     if (!p.teacher) return showMsg("⚠ اختر المعلم.", false);
     if (p.package !== "" && p.startDate && !(p.firstDays || p.days)) return showMsg("⚠ اكتب أيام الدرس لحساب مجالس هذا الشهر، أو أفرغ تاريخ أول مجلس لتسجيل الباقة كاملة.", false);
     if ((mode === "join" && !p.groupStart) || (mode === "pair" && !p.pairCode)) return showMsg("⚠ اختر " + (mode === "join" ? "المجموعة" : "الطالب الفردي") + ".", false);
-    btn.disabled = true; btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
+    btn.disabled = true; btn.textContent = "جارٍ فحص أعمدة المعلم…";
+    fillCheck(p, function () {
+    btn.textContent = "جارٍ التسجيل… قد يستغرق ذلك دقيقة";
     api("evalRegister", p).then(function (r) {
       var x = EV.evals.filter(function (y) { return y.id === p.id; })[0];
       x.status = "وُزّع"; x.assigned = p.teacher; x.assignNote = "الكود " + r.code;
       renderEvals();
       var fmTxt = r.firstMonth && r.firstMonth.applies ? "\nمجالس هذا الشهر: " + r.firstMonth.sessions + " من " + r.firstMonth.monthly + " (فاتورته " + r.firstMonth.total + ")" +
         (r.firstMonth.sessions < r.firstMonth.monthly ? "، وتعود الباقة الشهرية كاملة بعد قفل الشهر." : "") : "";
-      showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message + fmTxt, true);
+      showMsg("✓ " + (r.existed ? "كان مسجَّلًا من قبل بالكود " + r.code + (r.filled.length ? "، وأُكملت بياناته: " + r.filled.join("، ") : "") : "سُجّل " + p.name + " بالكود " + r.code + " في الأسرة " + r.familyId) + ".\n" + r.message + fmTxt + (r.wa ? "\n" + waNote(r.wa) : ""), true);
     }).catch(function (e) { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; showMsg("⚠ " + e.message, false); });
+    }, function () { btn.disabled = false; btn.textContent = "تسجيل الطالب وإضافته"; });
   }
 
   function archSearch() {
