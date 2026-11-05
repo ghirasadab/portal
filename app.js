@@ -697,6 +697,7 @@
   function loadSal() {
     var month = OV && OV.month;
     if (!month) return;
+    loadCrs(month);
     api("salList", { month: month }).then(function (res) {
       if (!OV || OV.month !== month) return;
       SAL = res; renderOverview();
@@ -845,6 +846,83 @@
       $("xName").scrollIntoView({ behavior: "smooth", block: "center" });
     });
   })();
+  /* ---------- رسوم الدورات: إيراد في «مجموع الوارد» دون رصيد الأسرة أو فواتيرها ---------- */
+  var CRS = null, crsEdit = "", crsBusy = false, crsFam = null;
+  (function buildCrs() {
+    var host = $("xCard"); if (!host) return;
+    host.insertAdjacentHTML("afterend",
+      '<section class="card" id="crCard"><h2>رسوم الدورات — <span class="mLbl"></span></h2>' +
+      '<div class="note">رسوم دورة تدفعها الأسرة مقدمًا (مثل «النحو للمبتدئين»). تدخل في «مجموع الوارد» بالتقرير المالي لهذا الشهر، ولا تظهر في رصيد الأسرة ولا فواتيرها.</div>' +
+      '<div class="cards" id="crKpis"></div><div id="crList"><div class="note">جارٍ التحميل…</div></div>' +
+      '<div class="chk-h" id="crFormH" style="font-weight:700;margin:12px 0 4px">إضافة رسم</div>' +
+      '<div class="field"><label for="crQ">الأسرة (بالاسم أو المعرّف أو اسم طالب)</label><input id="crQ" type="search" autocomplete="off" placeholder="ابحث عن الأسرة"></div>' +
+      '<div id="crRes"></div><div class="note" id="crPicked" hidden></div>' +
+      '<div class="row2"><div class="field"><label for="crCourse">الدورة / الطالب</label><input id="crCourse" maxlength="150" placeholder="مثال: النحو للمبتدئين - هنا محمد"></div>' +
+      '<div class="field"><label for="crAmt">المبلغ</label><input id="crAmt" inputmode="decimal" placeholder="0"></div></div>' +
+      '<div class="field"><label for="crNote">ملاحظة (اختياري)</label><input id="crNote" maxlength="200"></div>' +
+      '<div class="actions"><button type="button" class="primary" id="crSave">إضافة</button><button type="button" class="ghost" id="crCancel" hidden>إلغاء التعديل</button></div>' +
+      '<div class="note">يُحفظ فور الضغط في تبويب «رسوم الدورات» بالشيت الرئيسي، وكل إضافة أو تعديل أو حذف يُسجَّل في «سجل تعديل رسوم الدورات».</div></section>' +
+      '<style>#crCard .xrow{display:grid;grid-template-columns:minmax(0,1.4fr) 90px auto;gap:6px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);font-size:14px}' +
+      '#crCard .xrow small{color:var(--muted)}#crCard input{width:100%;box-sizing:border-box}#crCard .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}</style>');
+    function crReset() { crsEdit = ""; crsFam = null; $("crPicked").hidden = true; $("crQ").value = ""; $("crCourse").value = ""; $("crAmt").value = ""; $("crNote").value = ""; $("crSave").textContent = "إضافة"; $("crCancel").hidden = true; $("crFormH").textContent = "إضافة رسم"; }
+    function crDone() { crsBusy = false; $("crSave").disabled = false; crReset(); loadCrs(OV.month); refreshRep(); }
+    function crFail(e) { crsBusy = false; $("crSave").disabled = false; $("crSave").textContent = crsEdit ? "حفظ التعديل" : "إضافة"; showMsg("⚠ " + (e.message || e), false); }
+    $("crCancel").addEventListener("click", crReset);
+    $("crQ").addEventListener("input", function () {
+      var q = norm($("crQ").value), box = $("crRes");
+      if (!q) { box.innerHTML = ""; return; }
+      if (!STU) { box.innerHTML = '<div class="note">جارٍ تحميل الأسر…</div>'; loadStu(false, function () { $("crQ").dispatchEvent(new Event("input")); }); return; }
+      var w = q.split(" ");
+      var hits = STU.families.filter(function (f) { return w.every(function (x) { return f._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (f) {
+        return '<div class="inv-family-row" data-cf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد أسرة بهذا الاسم.</div>';
+    });
+    $("crRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-cf]"); if (!r || !STU) return;
+      crsFam = STU.families.filter(function (f) { return f.id === r.getAttribute("data-cf"); })[0]; if (!crsFam) return;
+      $("crRes").innerHTML = ""; $("crQ").value = "";
+      $("crPicked").innerHTML = "✓ <b>" + esc(crsFam.name) + "</b> — " + esc(crsFam.id) + (crsFam.kids ? "<br>" + esc(crsFam.kids) : ""); $("crPicked").hidden = false;
+    });
+    $("crSave").addEventListener("click", function () {
+      if (crsBusy || !OV) return;
+      if (!crsFam) return showMsg("⚠ اختر الأسرة أولًا.", false);
+      var body = { month: OV.month, id: crsEdit, family: crsFam.id, course: $("crCourse").value, amount: $("crAmt").value, note: $("crNote").value };
+      crsBusy = true; $("crSave").disabled = true; $("crSave").textContent = "جارٍ الحفظ…";
+      api("crsSave", body).then(function (res) { if (res && res.warning) showMsg("⚠ " + res.warning, false); crDone(); }).catch(crFail);
+    });
+    $("crList").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-ce],[data-cd]"); if (!b || !CRS) return;
+      var id = b.getAttribute("data-ce") || b.getAttribute("data-cd");
+      var x = CRS.rows.filter(function (r) { return r.id === id; })[0]; if (!x) return;
+      if (b.hasAttribute("data-cd")) {
+        if (crsBusy || !window.confirm("حذف رسم «" + x.course + "» (" + money(x.amount) + ")؟ يبقى أثره في «سجل تعديل رسوم الدورات».")) return;
+        crsBusy = true;
+        api("crsDelete", { month: OV.month, id: id }).then(crDone).catch(crFail);
+        return;
+      }
+      crsEdit = id; crsFam = { id: x.family, name: x.familyName || x.family, kids: "" };
+      $("crPicked").innerHTML = "✓ <b>" + esc(crsFam.name) + "</b> — " + esc(crsFam.id); $("crPicked").hidden = false;
+      $("crCourse").value = x.course; $("crAmt").value = x.amount || ""; $("crNote").value = x.note || "";
+      $("crSave").textContent = "حفظ التعديل"; $("crCancel").hidden = false; $("crFormH").textContent = "تعديل رسم";
+      $("crCourse").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  })();
+  function loadCrs(month) {
+    if (!$("crCard")) return;
+    api("crsList", { month: month }).then(function (r) {
+      if (!OV || OV.month !== month) return;
+      CRS = r; renderCrs();
+    }).catch(function (e) { $("crList").innerHTML = '<div class="note">⚠ ' + esc(e.message || e) + "</div>"; });
+  }
+  function renderCrs() {
+    if (!$("crCard") || !CRS || !OV || CRS.month !== OV.month) return;
+    $("crKpis").innerHTML = kpi("رسوم الدورات", money(CRS.total), CRS.rows.length + " رسم", "hl");
+    $("crList").innerHTML = CRS.rows.length ? CRS.rows.map(function (x) {
+      return '<div class="xrow"><span><b>' + esc(x.course) + "</b><br><small>" + esc(x.familyName || x.family) + " — " + esc(x.family) + (x.note ? " — " + esc(x.note) : "") + "</small></span><b>" + money(x.amount) + "</b>" +
+        '<span><button type="button" class="ghost small" data-ce="' + esc(x.id) + '">تعديل</button> <button type="button" class="ghost small" data-cd="' + esc(x.id) + '">حذف</button></span></div>';
+    }).join("") : '<div class="note">لا توجد رسوم دورات في هذا الشهر.</div>';
+  }
   function renderExp() {
     if (!$("xCard") || !OV) return;
     var ex = EXP && EXP.month === OV.month ? EXP : null;
