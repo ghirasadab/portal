@@ -1441,10 +1441,11 @@
       $("lvInfo").hidden = false;
       if (!r.inGroup) { $("lvInfo").textContent = "⚠ " + r.reason; return; }
       lvInfo = r;
-      $("lvInfo").textContent = "المجموعة: " + r.groupLabel + (r.hasSessions ? " — أخذت مجالس هذا الشهر" : " — لم تأخذ مجالس هذا الشهر");
+      $("lvInfo").textContent = "المجموعة: " + r.groupLabel + (r.solo ? " — لن يبقى فيها غيره" + (r.stopped.length ? " (زميله الموقوف: " + r.stopped.map(function (x) { return x.name; }).join("، ") + ")" : "") + "، فيتحول عموده مكانه لكل الشهر بمجالسه كما هي"
+        : (r.hasSessions ? " — أخذت مجالس هذا الشهر" : " — لم تأخذ مجالس هذا الشهر"));
       $("lvCat").placeholder = r.defaultCategory;
       if (!$("lvCat").value) $("lvCat").value = r.defaultCategory;
-      $("lvStartWrap").hidden = !r.hasSessions;
+      $("lvStartWrap").hidden = !r.hasSessions || !!r.solo;
       if (r.others.length === 1) { $("lvOtherWrap").hidden = false; $("lvOtherLbl").textContent = "أجر الساعة الفردي للطالب الباقي: " + r.others[0].name; }
     }).catch(function (e) { showMsg("⚠ " + e.message, false); });
   }
@@ -1457,10 +1458,10 @@
     if (!lvInfo || !lvInfo.inGroup) return showMsg("⚠ الطالب ليس في مجموعة لدى هذا المعلم.", false);
     var d = { code: lvPickSt.code, teacher: t, rate: $("lvRate").value.trim(), category: $("lvCat").value.trim(), startDate: $("lvStart").value, otherRate: $("lvOther").value.trim() };
     if (d.rate === "") return showMsg("⚠ اكتب أجر الساعة الفردي.", false);
-    if (lvInfo.hasSessions && !d.startDate) return showMsg("⚠ اختر تاريخ بدء المجلس الفردي.", false);
+    if (lvInfo.hasSessions && !lvInfo.solo && !d.startDate) return showMsg("⚠ اختر تاريخ بدء المجلس الفردي.", false);
     if (lvInfo.others.length === 1 && d.otherRate === "") return showMsg("⚠ اكتب أجر الساعة الفردي للطالب الباقي.", false);
     var txt = "سيتحول " + lvPickSt.name + " لدى " + t + " إلى فردي بأجر " + d.rate + " للساعة" +
-      (lvInfo.hasSessions ? " ابتداءً من " + d.startDate + " (يبقى عموده القديم لما قبل ذلك)" : " مباشرة") +
+      (lvInfo.solo ? " لكل الشهر (يتحول عموده مكانه بمجالسه)" : (lvInfo.hasSessions ? " ابتداءً من " + d.startDate + " (يبقى عموده القديم لما قبل ذلك)" : " مباشرة")) +
       (lvInfo.others.length === 1 ? "، ويتحول " + lvInfo.others[0].name + " أيضًا إلى فردي بأجر " + d.otherRate : "") + ".";
     if (!stArm("lvSave", "lvConfirm", JSON.stringify(d), txt)) return;
     stSend("stuLeave", d, "lvSave", 1, function (r) { showMsg(r.message, true); lvLoad(); });
