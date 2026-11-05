@@ -19,7 +19,7 @@
     if (asTeacher && !payload.as) payload.as = asTeacher;
     if (window.PORTAL_DEMO) return window.PORTAL_DEMO(payload);
     var ctrl = window.AbortController ? new AbortController() : null;
-    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stuCheck|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
+    var isLong = /^(evalRegister|paySave|stuRegister|stuAdd|stuMove|stuLeave|stuCheck|stCall)$/.test(action);   // التسجيل والإضافة إلى جداول المعلمين قد تستغرق دقيقة
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, isLong ? 150000 : 45000);
     return fetch(window.PORTAL_API, {
       method: "POST",
@@ -1307,7 +1307,7 @@
     };
     $("adminView").insertAdjacentHTML("beforeend",
       '<style>#aStu .row2{grid-template-columns:repeat(2,minmax(0,1fr))}#aStu input:not([type=checkbox]),#aStu select{width:100%;box-sizing:border-box}</style>' +
-      '<div id="aStu" hidden><section class="card"><div class="seg" id="stSeg"><button type="button" class="on" data-stm="new">🆕 طالب جديد</button><button type="button" data-stm="add">➕ إضافة إلى معلم</button><button type="button" data-stm="move">🔁 نقل إلى معلم آخر</button></div></section>' +
+      '<div id="aStu" hidden><section class="card"><div class="seg" id="stSeg"><button type="button" class="on" data-stm="new">🆕 طالب جديد</button><button type="button" data-stm="add">➕ إضافة إلى معلم</button><button type="button" data-stm="move">🔁 نقل إلى معلم آخر</button><button type="button" data-stm="leave">🔀 تحويل إلى فردي</button></div></section>' +
       '<div id="stLoading" class="loading">جارٍ تحميل الطلاب والأسر…</div>' +
       // طالب جديد
       '<section class="card" id="stNew" hidden><h2>تسجيل طالب جديد</h2>' +
@@ -1332,7 +1332,19 @@
       '<div id="suRes"></div><div class="note" id="suPicked" hidden></div>' +
       '<div class="field" id="suFromWrap" hidden><label for="suFrom">من معلم</label><select id="suFrom" class="date-sel" style="width:100%"></select></div>' + unit("su") +
       '<div class="confirm" id="suConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="suSave">إضافة</button></div>' +
-      '<div class="note" id="suFoot"></div></section></div>');
+      '<div class="note" id="suFoot"></div></section>' +
+      // تحويل طالب من مجموعة إلى فردي
+      '<section class="card" id="stLeave" hidden><h2>تحويل طالب من مجموعة إلى فردي</h2>' +
+      '<div class="field"><label for="lvQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="lvQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين" style="width:100%"></div>' +
+      '<div id="lvRes"></div><div class="note" id="lvPicked" hidden></div>' +
+      '<div class="field"><label for="lvTeacher">المعلم</label><select id="lvTeacher" class="date-sel" style="width:100%"></select></div>' +
+      '<div class="confirm" id="lvInfo" hidden></div>' +
+      '<div class="row2"><div class="field"><label for="lvCat">فئة المجلس الفردي</label><input id="lvCat" placeholder="مجلس فردي"></div>' +
+      '<div class="field"><label for="lvRate">أجر الساعة للمعلم</label><input id="lvRate" inputmode="decimal" value="70"></div></div>' +
+      '<div class="field" id="lvStartWrap" hidden><label for="lvStart">تاريخ بدء المجلس الفردي</label><input id="lvStart" type="date"><div class="note">للمجموعة مجالس هذا الشهر، فيُفتح للطالب عمود فردي من هذا التاريخ ويبقى عموده القديم لما قبله.</div></div>' +
+      '<div class="field" id="lvOtherWrap" hidden><label for="lvOther" id="lvOtherLbl">أجر الساعة الفردي للطالب الباقي</label><input id="lvOther" inputmode="decimal" value="70"><div class="note">لن يبقى في المجموعة غيره، فيُحوَّل هو أيضًا إلى فردي.</div></div>' +
+      '<div class="confirm" id="lvConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="lvSave">تحويل</button></div>' +
+      '<div class="note">إن لم تأخذ المجموعة مجالس هذا الشهر يتحول الطالب مباشرة. وإن أخذت: يبقى عموده القديم لما قبل التاريخ المختار (بخانات رمادية بعده) ويُفتح له عمود فردي بالكود نفسه، ويُحذف عمود المجموعة من الشهر القادم.</div></section></div>');
 
     $("stSeg").addEventListener("click", function (e) { var b = e.target.closest("[data-stm]"); if (b && !stBusy) stMode(b.getAttribute("data-stm")); });
     $("snFamSeg").addEventListener("click", function (e) {
@@ -1392,7 +1404,67 @@
     $("suRes").addEventListener("click", function (e) { var r = e.target.closest("[data-sc]"); if (r) suPick(r.getAttribute("data-sc")); });
     $("suFrom").addEventListener("change", stDisarm);
     $("suSave").addEventListener("click", suSave);
+    $("lvSave").addEventListener("click", lvSave);
+    $("lvQ").addEventListener("input", function () {
+      var q = norm($("lvQ").value), box = $("lvRes");
+      if (!q || !STU) { box.innerHTML = ""; return; }
+      var w = q.split(" ");
+      var hits = STU.students.filter(function (s) { return w.every(function (x) { return s._k.indexOf(x) !== -1; }); }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (s) {
+        return '<div class="inv-family-row" data-lc="' + esc(s.code) + '"><span class="inv-fname"><b>' + esc(s.name) + "</b><br><small>" + esc(s.code) + " — " + esc(s.parent) + (s.teachers ? " — لدى: " + esc(s.teachers) : "") + "</small></span></div>";
+      }).join("") : '<div class="note">لا توجد نتائج.</div>';
+    });
+    $("lvRes").addEventListener("click", function (e) { var r = e.target.closest("[data-lc]"); if (r) lvPick(r.getAttribute("data-lc")); });
+    $("lvTeacher").addEventListener("change", function () { lvLoad(); stDisarm(); });
   })();
+  var lvPickSt = null, lvInfo = null;
+  function lvPick(code) {
+    lvPickSt = STU.students.filter(function (s) { return s.code === code; })[0];
+    if (!lvPickSt) return;
+    $("lvRes").innerHTML = ""; $("lvQ").value = "";
+    $("lvPicked").innerHTML = "✓ <b>" + esc(lvPickSt.name) + "</b> — " + esc(lvPickSt.code) + "<br>ولي الأمر: " + esc(lvPickSt.parent) + (lvPickSt.teachers ? " — المعلمون الحاليون: " + esc(lvPickSt.teachers) : "");
+    $("lvPicked").hidden = false;
+    $("lvTeacher").innerHTML = stOpts("");
+    var cur = STU.teachers.filter(function (t) { return String(lvPickSt.teachers).indexOf(t) !== -1; });
+    if (cur.length === 1) $("lvTeacher").value = cur[0];
+    $("lvCat").value = "";
+    lvLoad(); stDisarm();
+  }
+  function lvLoad() {
+    lvInfo = null;
+    $("lvInfo").hidden = true; $("lvStartWrap").hidden = true; $("lvOtherWrap").hidden = true;
+    var t = $("lvTeacher").value;
+    if (!lvPickSt || !t) return;
+    var code = lvPickSt.code;
+    api("stuLeaveInfo", { teacher: t, code: code }).then(function (r) {
+      if ($("lvTeacher").value !== t || !lvPickSt || lvPickSt.code !== code) return;
+      $("lvInfo").hidden = false;
+      if (!r.inGroup) { $("lvInfo").textContent = "⚠ " + r.reason; return; }
+      lvInfo = r;
+      $("lvInfo").textContent = "المجموعة: " + r.groupLabel + (r.hasSessions ? " — أخذت مجالس هذا الشهر" : " — لم تأخذ مجالس هذا الشهر");
+      $("lvCat").placeholder = r.defaultCategory;
+      if (!$("lvCat").value) $("lvCat").value = r.defaultCategory;
+      $("lvStartWrap").hidden = !r.hasSessions;
+      if (r.others.length === 1) { $("lvOtherWrap").hidden = false; $("lvOtherLbl").textContent = "أجر الساعة الفردي للطالب الباقي: " + r.others[0].name; }
+    }).catch(function (e) { showMsg("⚠ " + e.message, false); });
+  }
+  function lvSave() {
+    if (stBusy || !STU) return;
+    clearMsg();
+    if (!lvPickSt) return showMsg("⚠ اختر الطالب أولًا.", false);
+    var t = $("lvTeacher").value;
+    if (!t) return showMsg("⚠ اختر المعلم.", false);
+    if (!lvInfo || !lvInfo.inGroup) return showMsg("⚠ الطالب ليس في مجموعة لدى هذا المعلم.", false);
+    var d = { code: lvPickSt.code, teacher: t, rate: $("lvRate").value.trim(), category: $("lvCat").value.trim(), startDate: $("lvStart").value, otherRate: $("lvOther").value.trim() };
+    if (d.rate === "") return showMsg("⚠ اكتب أجر الساعة الفردي.", false);
+    if (lvInfo.hasSessions && !d.startDate) return showMsg("⚠ اختر تاريخ بدء المجلس الفردي.", false);
+    if (lvInfo.others.length === 1 && d.otherRate === "") return showMsg("⚠ اكتب أجر الساعة الفردي للطالب الباقي.", false);
+    var txt = "سيتحول " + lvPickSt.name + " لدى " + t + " إلى فردي بأجر " + d.rate + " للساعة" +
+      (lvInfo.hasSessions ? " ابتداءً من " + d.startDate + " (يبقى عموده القديم لما قبل ذلك)" : " مباشرة") +
+      (lvInfo.others.length === 1 ? "، ويتحول " + lvInfo.others[0].name + " أيضًا إلى فردي بأجر " + d.otherRate : "") + ".";
+    if (!stArm("lvSave", "lvConfirm", JSON.stringify(d), txt)) return;
+    stSend("stuLeave", d, "lvSave", 1, function (r) { showMsg(r.message, true); lvLoad(); });
+  }
   function loadStu(force, cb, onErr) {
     if (STU && !force) { if (cb) cb(); else stShow(); return; }
     $("stLoading").hidden = false; $("stLoading").textContent = "جارٍ تحميل الطلاب والأسر…";
@@ -1411,12 +1483,13 @@
   function stShow() {
     $("stNew").hidden = stCur !== "new" || !$("stDone").hidden;
     if (stCur !== "new") $("stDone").hidden = true;
-    $("stUnit").hidden = stCur === "new";
+    $("stUnit").hidden = stCur === "new" || stCur === "leave";
+    $("stLeave").hidden = stCur !== "leave";
   }
   function stMode(m) {
     stCur = m; clearMsg();
     $("stSeg").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-stm") === m); });
-    if (m !== "new") {
+    if (m !== "new" && m !== "leave") {
       var mv = m === "move";
       $("stUnitHead").textContent = mv ? "نقل طالب إلى معلم آخر" : "إضافة طالب إلى معلم";
       $("suFromWrap").hidden = !mv; $("suTeacherLbl").textContent = mv ? "إلى معلم" : "المعلم";
@@ -1455,10 +1528,11 @@
   }
   function stDisarm() {
     stArmed = "";
-    $("snConfirm").hidden = true; $("suConfirm").hidden = true;
+    $("snConfirm").hidden = true; $("suConfirm").hidden = true; $("lvConfirm").hidden = true;
     if (!stBusy) {
       $("snSave").textContent = "تسجيل الطالب"; $("snSave").classList.remove("confirming");
       $("suSave").textContent = stCur === "move" ? "نقل" : "إضافة"; $("suSave").classList.remove("confirming");
+      $("lvSave").textContent = "تحويل"; $("lvSave").classList.remove("confirming");
     }
   }
   function stArm(btn, box, key, text) {
