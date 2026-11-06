@@ -1948,14 +1948,14 @@
       '<div class="confirm" id="zpConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zpBtn">حفظ الباقة</button></div>' +
       '<div class="note">يتغير عدد المجالس أو سعر المجلس في «الأسر والطلاب» فتتغير فاتورة الشهر، ولا يتغير أجر المعلم (يُحسب من أجر ساعته في شيته حسب فردي أو مجموعة)، والمجالس المرحّلة من الشهور المقفولة تبقى بسعرها القديم، ويُسجَّل كل تعديل في تبويب «سجل تعديل الباقات». الفواتير التي أُرسلت للأسرة قبل التعديل لا تتغير وحدها.</div></div></section>' +
       '<section class="card" id="zPkgFam" hidden><h2>تعديل سعر المجلس لأسرة</h2>' +
-      '<div class="field"><label for="zfQ">الأسرة (باسم ولي الأمر أو المعرّف أو اسم طالب)</label><input id="zfQ" type="search" autocomplete="off" placeholder="مثال: أماني أو س.0001"></div>' +
-      '<div id="zfRes"></div><div id="zfBox" hidden><div class="picked" id="zfPicked"></div>' +
-      '<div class="row2"><div class="field"><label for="zfAll">سعر موحَّد لكل الطلاب</label><input id="zfAll" inputmode="decimal" placeholder="مثال: 125"></div>' +
-      '<div class="field"><label>&nbsp;</label><button type="button" class="ghost" id="zfApply">تطبيق على الكل</button></div></div>' +
-      '<div id="zfKids"></div>' +
-      '<div class="fin-scope"><label><input type="radio" name="zfScope" value="month" checked><span><b>هذا الشهر فقط</b> — يعود السعر السابق عند قفل الشهر.</span></label>' +
-      '<label><input type="radio" name="zfScope" value="always"><span><b>من الآن وما بعده</b></span></label></div>' +
-      '<div class="confirm" id="zfConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zfBtn">حفظ الأسعار</button></div>' +
+      '<div class="field"><label for="zgQ">الأسرة (باسم ولي الأمر أو المعرّف أو اسم طالب)</label><input id="zgQ" type="search" autocomplete="off" placeholder="مثال: أماني أو س.0001"></div>' +
+      '<div id="zgRes"></div><div id="zgBox" hidden><div class="picked" id="zgPicked"></div>' +
+      '<div class="row2"><div class="field"><label for="zgAll">سعر موحَّد لكل الطلاب</label><input id="zgAll" inputmode="decimal" placeholder="مثال: 125"></div>' +
+      '<div class="field"><label>&nbsp;</label><button type="button" class="ghost" id="zgApply">تطبيق على الكل</button></div></div>' +
+      '<div id="zgKids"></div>' +
+      '<div class="fin-scope"><label><input type="radio" name="zgScope" value="month" checked><span><b>هذا الشهر فقط</b> — يعود السعر السابق عند قفل الشهر.</span></label>' +
+      '<label><input type="radio" name="zgScope" value="always"><span><b>من الآن وما بعده</b></span></label></div>' +
+      '<div class="confirm" id="zgConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zgBtn">حفظ الأسعار</button></div>' +
       '<div class="note">يمكنك تعديل سعر كل طالب على حدة، أو تطبيق سعر واحد على الجميع ثم تعديل من تشاء. لا يُحفظ إلا من تغيّر سعره، ويُتخطّى الطالب الموقوف. أجر المعلم لا يتغير.</div></div></section>');
 
     function famHits(q) {
@@ -2068,51 +2068,51 @@
     });
 
     /* سعر المجلس لأسرة كاملة */
-    var fmSel = null, fmArmed = false;
-    function fmDisarm() { fmArmed = false; $("zfConfirm").hidden = true; $("zfBtn").textContent = "حفظ الأسعار"; $("zfBtn").classList.remove("confirming"); }
-    function fmKids() { return STU.students.filter(function (x) { return x.fid === fmSel.id; }); }
-    $("zfQ").addEventListener("input", function () {
-      var q = $("zfQ").value, box = $("zfRes");
+    var gmSel = null, fmArmed = false;
+    function fmDisarm() { fmArmed = false; $("zgConfirm").hidden = true; $("zgBtn").textContent = "حفظ الأسعار"; $("zgBtn").classList.remove("confirming"); }
+    function fmKids() { return STU.students.filter(function (x) { return x.fid === gmSel.id; }); }
+    $("zgQ").addEventListener("input", function () {
+      var q = $("zgQ").value, box = $("zgRes");
       if (!norm(q) || !STU) { box.innerHTML = ""; return; }
       var hits = famHits(q);
       box.innerHTML = hits.length ? hits.map(function (f) {
-        return '<div class="inv-family-row" data-zf="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
+        return '<div class="inv-family-row" data-zg="' + esc(f.id) + '"><span class="inv-fname"><b>' + esc(f.name) + "</b><br><small>" + esc(f.id) + (f.kids ? " — " + esc(f.kids) : "") + "</small></span></div>";
       }).join("") : '<div class="note">لا توجد نتائج.</div>';
     });
-    $("zfRes").addEventListener("click", function (e) {
-      var r = e.target.closest("[data-zf]"); if (!r) return;
-      var id = r.getAttribute("data-zf");
-      fmSel = STU.families.filter(function (f) { return f.id === id; })[0]; if (!fmSel) return;
-      $("zfRes").innerHTML = ""; $("zfQ").value = ""; fmDisarm(); $("zfAll").value = "";
-      $("zfPicked").innerHTML = "<b>" + esc(fmSel.name) + "</b> — " + esc(fmSel.id);
-      $("zfKids").innerHTML = fmKids().map(function (k) {
-        return '<div class="field"><label for="zfp_' + esc(k.code) + '">' + esc(k.name) + " — " + esc(k.code) + (k.active === false ? " (متوقف)" : "") + '</label><input class="zfp" data-code="' + esc(k.code) + '" data-old="' + esc(k.price) + '" id="zfp_' + esc(k.code) + '" inputmode="decimal" value="' + esc(k.price) + '"' + (k.active === false ? " disabled" : "") + "></div>";
+    $("zgRes").addEventListener("click", function (e) {
+      var r = e.target.closest("[data-zg]"); if (!r) return;
+      var id = r.getAttribute("data-zg");
+      gmSel = STU.families.filter(function (f) { return f.id === id; })[0]; if (!gmSel) return;
+      $("zgRes").innerHTML = ""; $("zgQ").value = ""; fmDisarm(); $("zgAll").value = "";
+      $("zgPicked").innerHTML = "<b>" + esc(gmSel.name) + "</b> — " + esc(gmSel.id);
+      $("zgKids").innerHTML = fmKids().map(function (k) {
+        return '<div class="field"><label for="zgp_' + esc(k.code) + '">' + esc(k.name) + " — " + esc(k.code) + (k.active === false ? " (متوقف)" : "") + '</label><input class="zgp" data-code="' + esc(k.code) + '" data-old="' + esc(k.price) + '" id="zgp_' + esc(k.code) + '" inputmode="decimal" value="' + esc(k.price) + '"' + (k.active === false ? " disabled" : "") + "></div>";
       }).join("") || '<div class="note">لا طلاب في هذه الأسرة.</div>';
-      $("zfBox").hidden = false;
+      $("zgBox").hidden = false;
     });
-    $("zfApply").addEventListener("click", function () {
-      var v = $("zfAll").value.trim(); if (v === "") return showMsg("اكتب السعر الموحَّد أولًا.", false);
-      document.querySelectorAll("#zfKids .zfp:not([disabled])").forEach(function (i) { i.value = v; }); fmDisarm();
+    $("zgApply").addEventListener("click", function () {
+      var v = $("zgAll").value.trim(); if (v === "") return showMsg("اكتب السعر الموحَّد أولًا.", false);
+      document.querySelectorAll("#zgKids .zgp:not([disabled])").forEach(function (i) { i.value = v; }); fmDisarm();
     });
-    $("zfBox").addEventListener("input", fmDisarm);
-    $("zfBox").addEventListener("change", fmDisarm);
-    $("zfBtn").addEventListener("click", function () {
-      if (!fmSel) return;
+    $("zgBox").addEventListener("input", fmDisarm);
+    $("zgBox").addEventListener("change", fmDisarm);
+    $("zgBtn").addEventListener("click", function () {
+      if (!gmSel) return;
       var ch = [], bad = false;
-      document.querySelectorAll("#zfKids .zfp:not([disabled])").forEach(function (i) {
+      document.querySelectorAll("#zgKids .zgp:not([disabled])").forEach(function (i) {
         var raw = i.value.trim(), v = Number(digits(raw));
         if (raw === "" || isNaN(v) || v < 0 || v > 10000) { bad = true; return; }
         if (v !== Number(i.getAttribute("data-old"))) ch.push({ code: i.getAttribute("data-code"), v: v });
       });
       if (bad) return showMsg("اكتب سعرًا صحيحًا لكل طالب (0 للتطوع).", false);
       if (!ch.length) return showMsg("لم يتغير شيء عن الأسعار الحالية.", false);
-      var scope = document.querySelector('input[name="zfScope"]:checked').value;
+      var scope = document.querySelector('input[name="zgScope"]:checked').value;
       if (!fmArmed) {
         fmArmed = true;
-        $("zfConfirm").textContent = "ستتغير أسعار " + ch.length + " من الطلاب" + (scope === "month" ? " لهذا الشهر فقط" : " من الآن وما بعده") + ". اضغط مرة أخرى للتأكيد.";
-        $("zfConfirm").hidden = false; $("zfBtn").textContent = "تأكيد"; $("zfBtn").classList.add("confirming"); return;
+        $("zgConfirm").textContent = "ستتغير أسعار " + ch.length + " من الطلاب" + (scope === "month" ? " لهذا الشهر فقط" : " من الآن وما بعده") + ". اضغط مرة أخرى للتأكيد.";
+        $("zgConfirm").hidden = false; $("zgBtn").textContent = "تأكيد"; $("zgBtn").classList.add("confirming"); return;
       }
-      var b = $("zfBtn"); b.disabled = true; b.textContent = "جارٍ الحفظ…";
+      var b = $("zgBtn"); b.disabled = true; b.textContent = "جارٍ الحفظ…";
       var done = 0, errs = [];
       (function next() {
         if (!ch.length) {
