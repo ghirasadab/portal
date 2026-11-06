@@ -1938,14 +1938,15 @@
       '<div class="field"><label for="zvQ">الأسرة (باسم ولي الأمر أو المعرّف أو اسم طالب)</label><input id="zvQ" type="search" autocomplete="off" placeholder="مثال: أماني أو س.0001"></div>' +
       '<div id="zvRes"></div><div id="zvOut" class="money" hidden></div>' +
       '<div class="note">قراءة فقط من «الأسر والطلاب» و«ملخص ماليات الأسر» و«سجل المدفوعات»، ولا يغيّر شيئًا. المجالس المنجزة تُجمَّع من شيتات المعلمين في «تجميع مجالس المعلمين» وقد يتأخر ظهور مجلس اليوم حتى التجميع التالي.</div></section>' +
-      '<section class="card" id="zPkgCard" hidden><h2>تعديل باقة الطالب</h2>' +
+      '<section class="card" id="zPkgCard" hidden><h2>تعديل باقة الطالب وسعر المجلس</h2>' +
       '<div class="field"><label for="zpQ">الطالب (بالاسم أو الكود أو ولي الأمر)</label><input id="zpQ" type="search" autocomplete="off" placeholder="مثال: ط.0203 أو زين"></div>' +
       '<div id="zpRes"></div><div class="picked" id="zpPicked" hidden></div>' +
-      '<div id="zpBox" hidden><div class="field"><label for="zpNew">عدد مجالس الباقة الجديد</label><input id="zpNew" inputmode="decimal" placeholder="مثال: 8"></div>' +
-      '<div class="fin-scope"><label><input type="radio" name="zpScope" value="month" checked><span><b>هذا الشهر فقط</b> — تعود الباقة السابقة عند قفل الشهر.</span></label>' +
-      '<label><input type="radio" name="zpScope" value="always"><span><b>من الآن وما بعده</b> — تبقى الباقة الجديدة في الأشهر القادمة.</span></label></div>' +
+      '<div id="zpBox" hidden><div class="row2"><div class="field"><label for="zpNew">عدد مجالس الباقة الجديد</label><input id="zpNew" inputmode="decimal" placeholder="مثال: 8"></div>' +
+      '<div class="field"><label for="zpPrice">سعر المجلس الجديد</label><input id="zpPrice" inputmode="decimal" placeholder="مثال: 125"></div></div>' +
+      '<div class="fin-scope"><label><input type="radio" name="zpScope" value="month" checked><span><b>هذا الشهر فقط</b> — تعود الباقة والسعر السابقان عند قفل الشهر.</span></label>' +
+      '<label><input type="radio" name="zpScope" value="always"><span><b>من الآن وما بعده</b> — تبقى الباقة والسعر الجديدان في الأشهر القادمة.</span></label></div>' +
       '<div class="confirm" id="zpConfirm" hidden></div><div class="actions"><button type="button" class="primary" id="zpBtn">حفظ الباقة</button></div>' +
-      '<div class="note">يتغير عدد المجالس في «الأسر والطلاب» فتتغير فاتورة الشهر وفق سعر المجلس، ويُسجَّل كل تعديل في تبويب «سجل تعديل الباقات». الفواتير التي أُرسلت للأسرة قبل التعديل لا تتغير وحدها.</div></div></section>');
+      '<div class="note">يتغير عدد المجالس أو سعر المجلس في «الأسر والطلاب» فتتغير فاتورة الشهر، ولا يتغير أجر المعلم (يُحسب من أجر ساعته في شيته حسب فردي أو مجموعة)، والمجالس المرحّلة من الشهور المقفولة تبقى بسعرها القديم، ويُسجَّل كل تعديل في تبويب «سجل تعديل الباقات». الفواتير التي أُرسلت للأسرة قبل التعديل لا تتغير وحدها.</div></div></section>');
 
     function famHits(q) {
       var w = norm(q).split(" ");
@@ -2030,8 +2031,8 @@
         pk = d;
         p.innerHTML = "<b>" + esc(d.name) + "</b> — " + esc(d.code) + "<br><small>ولي الأمر: " + esc(d.parent) + (d.teachers ? " — لدى: " + esc(d.teachers) : "") + "</small>" +
           zLn("الباقة الحالية (" + esc(d.month) + ")", hs(d.pkg)) + zLn("المنجز", hs(d.done)) + zLn("سعر المجلس", pmoney(d.rate)) + zLn("فاتورة الشهر", pmoney(d.invoice)) +
-          (d.monthly !== null ? zLn("الباقة الشهرية المحفوظة", hs(d.monthly)) : "");
-        $("zpNew").value = d.pkg; $("zpBox").hidden = false;
+          (d.monthly !== null ? zLn("الباقة الشهرية المحفوظة", hs(d.monthly)) : "") + (d.monthlyPrice !== null && d.monthlyPrice !== undefined ? zLn("السعر الشهري المحفوظ", pmoney(d.monthlyPrice)) : "");
+        $("zpNew").value = d.pkg; $("zpPrice").value = d.rate; $("zpBox").hidden = false;
         if (!d.hasMonthlyCol) document.querySelector('input[name="zpScope"][value="always"]').checked = true;
       }).catch(function (e) { p.textContent = "⚠ " + e.message; });
     }
@@ -2039,16 +2040,19 @@
     $("zpBox").addEventListener("change", pkDisarm);
     $("zpBtn").addEventListener("click", function () {
       if (!pk) return;
-      var n = Number(digits($("zpNew").value));
+      var n = Number(digits($("zpNew").value)), pr = Number(digits($("zpPrice").value));
       if (isNaN(n) || $("zpNew").value.trim() === "" || n < 0 || n > 200) return showMsg("اكتب عدد مجالس صحيحًا بين 0 و200.", false);
+      if (isNaN(pr) || $("zpPrice").value.trim() === "" || pr < 0 || pr > 10000) return showMsg("اكتب سعر مجلس صحيحًا (0 للتطوع).", false);
+      var pkgCh = n !== Number(pk.pkg), priceCh = pr !== Number(pk.rate);
+      if (!pkgCh && !priceCh) return showMsg("لم يتغير شيء عن القيم الحالية.", false);
       var scope = document.querySelector('input[name="zpScope"]:checked').value;
       if (!pkArmed) {
         pkArmed = true;
-        $("zpConfirm").textContent = "ستصير باقة " + pk.name + " " + hs(n) + " بدل " + hs(pk.pkg) + (scope === "month" ? " لهذا الشهر فقط" : " من الآن وما بعده") + ". اضغط مرة أخرى للتأكيد.";
+        $("zpConfirm").textContent = "ستصير " + [pkgCh ? "باقة " + pk.name + " " + hs(n) + " بدل " + hs(pk.pkg) : "", priceCh ? "سعر المجلس " + pmoney(pr) + " بدل " + pmoney(pk.rate) : ""].filter(String).join(" و") + (scope === "month" ? " لهذا الشهر فقط" : " من الآن وما بعده") + ". اضغط مرة أخرى للتأكيد.";
         $("zpConfirm").hidden = false; $("zpBtn").textContent = "تأكيد"; $("zpBtn").classList.add("confirming"); return;
       }
       var b = $("zpBtn"); b.disabled = true; b.textContent = "جارٍ الحفظ…";
-      api("pkgSet", { code: pk.code, pkg: n, scope: scope }).then(function (res) {
+      api("pkgSet", { code: pk.code, pkg: pkgCh ? n : "", price: priceCh ? pr : "", scope: scope }).then(function (res) {
         b.disabled = false; pkDisarm(); showMsg("✓ " + res.message, true); STU = null; pkLoad(pk.code);
       }).catch(function (e) { b.disabled = false; pkDisarm(); showMsg("⚠ " + e.message, false); });
     });
