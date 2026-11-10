@@ -1347,6 +1347,7 @@
       if (pSel && pSel.id === fam.id) { $("pyAmount").value = ""; $("pyNotes").value = ""; }
       payRender(s);
       payDueLoad();
+      INV = null;   // قائمة الفواتير قديمة بعد الدفع: تُحمَّل من جديد عند فتح تبويب الفواتير
       showMsg((s.alreadySaved ? "✓ هذه الدفعة مسجَّلة من قبل ولم تُكرَّر: " : "✓ سُجّلت دفعة ") + pmoney(p.amount, s.usd) + " من " + fam.name + "، والمتبقي الآن " + pmoney(s.remaining, s.usd) + ".", true);
     }).catch(function (e) {
       var m = String(e.message || e);
@@ -2986,8 +2987,8 @@
         var fams = done.map(function (r) { return { code: r.code, name: r.name }; });
         api("sentMark", { month: month, isNext: isNext, families: fams }).then(function () {
           (INV.families || []).forEach(function (f) { if (done.some(function (r) { return String(r.code) === String(f.code); })) f.sent = true; });
-          end();
-        }).catch(function (e) { msg += " لكن تعذّر تعليمها «أُرسلت»: " + e.message; end(); });
+          end(); loadInvoices(true);   // إعادة قراءة المتبقي بعد الدفع
+        }).catch(function (e) { msg += " لكن تعذّر تعليمها «أُرسلت»: " + e.message; end(); loadInvoices(true); });
       }
     }
     btn.addEventListener("click", function () {
