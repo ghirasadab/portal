@@ -2529,7 +2529,8 @@
       '<section class="card" id="wlAdd" hidden><h2>إضافة طالب إلى قائمة الانتظار</h2>' +
       '<div class="row2"><div class="field"><label for="waName">اسم الطالب</label><input id="waName" placeholder="مثال: يوسف أحمد"></div>' +
       '<div class="field"><label for="waPhone">رقم الهاتف</label><input id="waPhone" inputmode="tel" placeholder="مثال: 01012345678"></div></div>' +
-      '<div class="row2"><div class="field"><label for="waCourse">الدورة المنتظرة</label><select id="waCourse" class="date-sel"></select></div>' +
+      '<div class="field"><label for="waCourse">الدورة المنتظرة</label><select id="waCourse" class="date-sel"></select></div>' +
+      '<div class="row2"><div class="field"><label for="waAge">السن</label><input id="waAge" placeholder="مثال: 9 سنوات"></div>' +
       '<div class="field"><label for="waDate">تاريخ التسجيل</label><input id="waDate" type="date"></div></div>' +
       '<div class="field"><label for="waNote">ملاحظات (اختياري)</label><textarea id="waNote" rows="2" placeholder="مثال: يفضّل المساء، أو عمره 10 سنوات"></textarea></div>' +
       '<div class="box"><h3>مبلغ الحجز (اختياري)</h3><div class="row2"><div class="field"><label for="waAmt">المبلغ المدفوع</label><input id="waAmt" inputmode="decimal" placeholder="اتركه فارغًا إن لم يدفع"></div>' +
@@ -2544,7 +2545,8 @@
       '<div class="field"><label for="wdPhone">رقم الهاتف</label><input id="wdPhone" inputmode="tel"></div></div>' +
       '<div class="row2"><div class="field"><label for="wdCourse">الدورة</label><select id="wdCourse" class="date-sel"></select></div>' +
       '<div class="field"><label for="wdStatus">الحالة</label><select id="wdStatus" class="date-sel"></select></div></div>' +
-      '<div class="row2"><div class="field"><label for="wdDate">تاريخ التسجيل</label><input id="wdDate" type="date"></div><div class="field"><label>تواصل</label><a class="ghost small" id="wdWa" target="_blank" rel="noopener" style="display:block;text-align:center;padding:9px 0">💬 واتساب</a></div></div>' +
+      '<div class="row2"><div class="field"><label for="wdAge">السن</label><input id="wdAge" placeholder="مثال: 9 سنوات"></div><div class="field"><label for="wdDate">تاريخ التسجيل</label><input id="wdDate" type="date"></div></div>' +
+      '<a class="ghost small" id="wdWa" target="_blank" rel="noopener" style="display:block;text-align:center;padding:9px 0;margin-bottom:8px">💬 مراسلته على واتساب</a>' +
       '<div class="field"><label for="wdNote">ملاحظات</label><textarea id="wdNote" rows="2"></textarea></div>' +
       '<div class="note" id="wdStatusNote" hidden></div>' +
       '<div class="msg" id="wdMsg" hidden></div><div class="actions"><button type="button" class="ghost" id="wdDel">🗑 حذف من القائمة</button><button type="button" class="primary" id="wdSave">حفظ التعديل</button></div>' +
@@ -2652,7 +2654,7 @@
     var list = wlFiltered(), stc = function (s) { return "st" + Math.max(0, WL.statuses.indexOf(s)); };
     $("wlList").innerHTML = list.length ? list.map(function (e, i) {
       var n = wlNet(e);
-      return '<div class="wl-row' + (wlSel && wlSel.id === e.id ? " sel" : "") + '" data-we="' + esc(e.id) + '"><span><b>' + (wlView === "active" ? (i + 1) + ". " : "") + esc(e.name) + "</b>" +
+      return '<div class="wl-row' + (wlSel && wlSel.id === e.id ? " sel" : "") + '" data-we="' + esc(e.id) + '"><span><b>' + (wlView === "active" ? (i + 1) + ". " : "") + esc(e.name) + "</b>" + (e.age ? " <small>(" + esc(e.age) + ")</small>" : "") +
         (wlCourse ? "" : " — " + esc(e.course)) + '<br><small><a href="https://wa.me/' + esc(e.phone) + '" target="_blank" rel="noopener" dir="ltr">' + esc(e.phone) + "</a> · " + esc(e.date) +
         (n ? " · حجز " + wlMoney(n, e.currency) : "") + (e.family ? " · " + esc(e.family) : "") + (e.note ? "<br>" + esc(e.note) : "") + "</small></span>" +
         '<span class="wl-st ' + stc(e.status) + '">' + esc(e.status) + "</span></div>";
@@ -2676,7 +2678,7 @@
     if (!WL) return;
     if (!WL.courses.some(function (c) { return c.state === "مفتوحة"; })) { wlMsg("wlTopMsg", "لا توجد دورة مفتوحة. أضف دورة من قسم «الدورات» أدناه أولًا.", true); $("wkName").focus(); return; }
     $("waCourse").innerHTML = wlCourseOpts(wlCourse, true);
-    ["waName", "waPhone", "waNote", "waAmt"].forEach(function (k) { $(k).value = ""; });
+    ["waName", "waPhone", "waAge", "waNote", "waAmt"].forEach(function (k) { $(k).value = ""; });
     $("waDate").value = WL.today; $("waPayDate").value = WL.today;
     wlMsg("waMsg", "");
     $("wlAdd").hidden = false; $("wlDet").hidden = true; wlSel = null;
@@ -2685,7 +2687,7 @@
   function wlAddSave() {
     if (wlBusy) return;
     var amt = $("waAmt").value.trim();
-    var body = { name: $("waName").value, phone: $("waPhone").value, courseId: $("waCourse").value, date: $("waDate").value, note: $("waNote").value };
+    var body = { name: $("waName").value, phone: $("waPhone").value, age: $("waAge").value, courseId: $("waCourse").value, date: $("waDate").value, note: $("waNote").value };
     if (amt) body.deposit = { amount: amt, currency: $("waCur").value, method: $("waMethod").value, date: $("waPayDate").value };
     wlBusy = true; $("waSave").disabled = true; wlMsg("waMsg", "");
     api("wlSave", body).then(function (r) {
@@ -2706,7 +2708,7 @@
   function wlFill() {
     var e = wlSel;
     $("wdTitle").textContent = e.name + " — " + e.course;
-    $("wdName").value = e.name; $("wdPhone").value = e.phone; $("wdDate").value = e.date; $("wdNote").value = e.note;
+    $("wdName").value = e.name; $("wdPhone").value = e.phone; $("wdAge").value = e.age || ""; $("wdDate").value = e.date; $("wdNote").value = e.note;
     $("wdCourse").innerHTML = wlCourseOpts(e.courseId, true); $("wdStatus").value = e.status;
     $("wdWa").href = "https://wa.me/" + e.phone;
     $("wpCur").value = e.currency || "ج"; $("wpCur").disabled = !!(e.paid || e.out);
@@ -2748,7 +2750,7 @@
     if (wlBusy || !wlSel) return;
     if ($("wdStatus").value === "حُوِّل إلى طالب" && wlSel.status !== "حُوِّل إلى طالب") { wlMsg("wdMsg", "⚠ استخدم قسم «تحويله إلى طالب» أدناه.", true); return; }
     wlBusy = true; $("wdSave").disabled = true;
-    api("wlSave", { id: wlSel.id, name: $("wdName").value, phone: $("wdPhone").value, courseId: $("wdCourse").value, status: $("wdStatus").value, date: $("wdDate").value, note: $("wdNote").value })
+    api("wlSave", { id: wlSel.id, name: $("wdName").value, phone: $("wdPhone").value, age: $("wdAge").value, courseId: $("wdCourse").value, status: $("wdStatus").value, date: $("wdDate").value, note: $("wdNote").value })
       .then(function (r) { return wlAfter(r, "wdMsg", "✓ حُفظ التعديل."); })
       .catch(function (e) { wlMsg("wdMsg", "⚠ " + e.message, true); })
       .then(function () { wlBusy = false; $("wdSave").disabled = false; });

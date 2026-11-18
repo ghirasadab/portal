@@ -47,7 +47,7 @@
   // قوائم الانتظار (وهمية)
   var WLD = { n: 3, courses: [{ id: "d1", name: "دورة العروض للكبار", state: "مفتوحة", note: "تبدأ حين يكتمل العدد 8" }, { id: "d2", name: "دورة الخط العربي", state: "مفتوحة", note: "" }, { id: "d3", name: "دورة الإلقاء (الصيف)", state: "مغلقة", note: "" }],
     entries: [
-      { id: "w1", name: "يوسف أحمد", phone: "201012345678", courseId: "d1", course: "دورة العروض للكبار", status: "منتظر", date: "2026-11-02", paid: 200, out: 0, currency: "ج", family: "", note: "يفضّل المساء",
+      { id: "w1", name: "يوسف أحمد", phone: "201012345678", courseId: "d1", course: "دورة العروض للكبار", status: "منتظر", date: "2026-11-02", paid: 200, out: 0, currency: "ج", family: "", note: "يفضّل المساء", age: "12 سنة",
         moves: [{ id: "m1", month: "نوفمبر 2026", date: "2026-11-02", kind: "حجز", amount: 200, currency: "ج", method: "فودافون كاش", note: "" }] },
       { id: "w2", name: "مريم خالد", phone: "201112223333", courseId: "d1", course: "دورة العروض للكبار", status: "تم التواصل", date: "2026-11-05", paid: 0, out: 0, currency: "ج", family: "", note: "", moves: [] },
       { id: "w3", name: "عمر سامي", phone: "966501234567", courseId: "d2", course: "دورة الخط العربي", status: "منتظر", date: "2026-11-10", paid: 20, out: 0, currency: "$", family: "", note: "",
@@ -72,8 +72,8 @@
       if (!String(p.name || "").trim()) throw new Error("اكتب اسم الطالب.");
       if (!String(p.phone || "").replace(/\D/g, "")) throw new Error("اكتب رقم الهاتف.");
       c = WLD.courses.filter(function (x) { return x.id === p.courseId; })[0];
-      if (p.id) { e = WLD.find(p.id); e.name = p.name; e.phone = String(p.phone).replace(/\D/g, ""); e.courseId = c.id; e.course = c.name; e.status = p.status; e.date = p.date; e.note = p.note; return { ok: true, entry: e }; }
-      e = { id: "w" + (++WLD.n), name: p.name, phone: String(p.phone).replace(/\D/g, "").replace(/^01/, "201"), courseId: c.id, course: c.name, status: "منتظر", date: p.date, paid: 0, out: 0, currency: "ج", family: "", note: p.note || "", moves: [] };
+      if (p.id) { e = WLD.find(p.id); e.name = p.name; e.phone = String(p.phone).replace(/\D/g, ""); e.courseId = c.id; e.course = c.name; e.status = p.status; e.date = p.date; e.note = p.note; e.age = p.age; return { ok: true, entry: e }; }
+      e = { id: "w" + (++WLD.n), name: p.name, phone: String(p.phone).replace(/\D/g, "").replace(/^01/, "201"), courseId: c.id, course: c.name, status: "منتظر", date: p.date, paid: 0, out: 0, currency: "ج", family: "", note: p.note || "", age: p.age || "", moves: [] };
       if (p.deposit && Number(p.deposit.amount) > 0) { e.currency = p.deposit.currency; e.moves.push({ id: "m" + (++WLD.n), month: "نوفمبر 2026", date: p.deposit.date, kind: "حجز", amount: Number(p.deposit.amount), currency: e.currency, method: p.deposit.method, note: "" }); WLD.recalc(e); }
       WLD.entries.push(e); return { ok: true, entry: e, warning: "" };
     }
