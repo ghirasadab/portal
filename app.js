@@ -2497,11 +2497,380 @@
     $("crBody").innerHTML = h;
   }
 
+  /* ---------- قوائم انتظار الدورات ---------- */
+  var WL = null, wlCourse = "", wlView = "active", wlSel = null, wlBusy = false, wlArm = "", wlFam = null, wlCourseEdit = "";
+  var WL_ACTIVE = ["منتظر", "تم التواصل"];
+  function wlMoney(n, cur) { n = Number(n) || 0; return n.toLocaleString("en-US", { maximumFractionDigits: 2 }) + " " + (cur || "ج"); }
+  function wlNet(e) { return Math.round(((Number(e.paid) || 0) - (Number(e.out) || 0)) * 100) / 100; }
+  function wlMsg(id, t, bad) { var b = $(id); if (!b) return; b.hidden = !t; b.className = "msg " + (bad ? "err" : "ok"); b.innerHTML = t ? esc(t).replace(/\n/g, "<br>") : ""; }
+  (function buildWaitTab() {
+    var tabs = document.querySelector(".admin-tabs"), after = tabs && (tabs.querySelector('[data-atab="status"]') || tabs.querySelector('[data-atab="evals"]'));
+    if (!tabs || !after) return;
+    after.insertAdjacentHTML("afterend", '<button type="button" class="tab" data-atab="waitlist">قوائم الانتظار</button>');
+    $("adminView").insertAdjacentHTML("beforeend",
+      '<style>#aWl input:not([type=checkbox]),#aWl select,#aWl textarea{width:100%;box-sizing:border-box}#aWl .row2{grid-template-columns:repeat(2,minmax(0,1fr))}' +
+      '#aWl .wl-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}#aWl .wl-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 4px;border-top:1px dashed var(--line);cursor:pointer}' +
+      '#aWl .wl-row:hover,#aWl .wl-row.sel{background:var(--beige)}#aWl .wl-row small{color:var(--muted)}#aWl .wl-st{font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px;white-space:nowrap;align-self:start}' +
+      '#aWl .st0{background:#fff4d6;color:#7a5a00}#aWl .st1{background:#e3eefc;color:#1d4f91}#aWl .st2{background:#e3f3e7;color:#1e7a34}#aWl .st3{background:#eee;color:#666}' +
+      '#aWl .mv{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;border-top:1px dashed var(--line)}#aWl .mv b{font-variant-numeric:tabular-nums;white-space:nowrap}' +
+      '#aWl .neg{color:var(--danger)}#aWl .pos{color:var(--ok)}#aWl .box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:12px}#aWl .box h3{margin:0 0 6px;font-size:14px;color:var(--green)}' +
+      '#aWl .crow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed var(--line)}#aWl .chk{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:14px}#aWl .chk input{width:18px;height:18px;flex:none;margin-top:2px}' +
+      '#aWl .hit{padding:8px 6px;border-top:1px dashed var(--line);cursor:pointer}#aWl .hit:hover{background:var(--beige)}</style>' +
+      '<div id="aWl" hidden>' +
+      // القائمة
+      '<section class="card"><div class="min-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2 style="margin:0">قوائم انتظار الدورات</h2>' +
+      '<span class="min-row" style="gap:6px"><button type="button" class="ghost small" id="wlCopy">📋 نسخ الأرقام</button><button type="button" class="primary small" id="wlAddBtn">➕ إضافة طالب</button></span></div>' +
+      '<div class="cards" id="wlKpis" style="margin-top:10px"></div>' +
+      '<div class="wl-chips" id="wlCourses"></div>' +
+      '<div class="seg" id="wlViewSeg"><button type="button" class="on" data-wv="active">المنتظرون</button><button type="button" data-wv="حُوِّل إلى طالب">حُوِّلوا إلى طلاب</button><button type="button" data-wv="انسحب">انسحبوا</button><button type="button" data-wv="all">الكل</button></div>' +
+      '<input id="wlQ" type="search" autocomplete="off" placeholder="ابحث بالاسم أو رقم الهاتف" style="margin-top:8px">' +
+      '<div class="msg" id="wlTopMsg" hidden></div><div id="wlList"><div class="loading">جارٍ التحميل…</div></div></section>' +
+      // إضافة
+      '<section class="card" id="wlAdd" hidden><h2>إضافة طالب إلى قائمة الانتظار</h2>' +
+      '<div class="row2"><div class="field"><label for="waName">اسم الطالب</label><input id="waName" placeholder="مثال: يوسف أحمد"></div>' +
+      '<div class="field"><label for="waPhone">رقم الهاتف</label><input id="waPhone" inputmode="tel" placeholder="مثال: 01012345678"></div></div>' +
+      '<div class="row2"><div class="field"><label for="waCourse">الدورة المنتظرة</label><select id="waCourse" class="date-sel"></select></div>' +
+      '<div class="field"><label for="waDate">تاريخ التسجيل</label><input id="waDate" type="date"></div></div>' +
+      '<div class="field"><label for="waNote">ملاحظات (اختياري)</label><textarea id="waNote" rows="2" placeholder="مثال: يفضّل المساء، أو عمره 10 سنوات"></textarea></div>' +
+      '<div class="box"><h3>مبلغ الحجز (اختياري)</h3><div class="row2"><div class="field"><label for="waAmt">المبلغ المدفوع</label><input id="waAmt" inputmode="decimal" placeholder="اتركه فارغًا إن لم يدفع"></div>' +
+      '<div class="field"><label for="waCur">العملة</label><select id="waCur" class="date-sel"></select></div></div>' +
+      '<div class="row2"><div class="field"><label for="waMethod">طريقة الدفع</label><select id="waMethod" class="date-sel"></select></div>' +
+      '<div class="field"><label for="waPayDate">تاريخ الدفع</label><input id="waPayDate" type="date"></div></div>' +
+      '<div class="note">يُسجَّل المبلغ في تبويب «دفعات الحجز» ويدخل في «مجموع الوارد» لشهر الدفع في «التقرير المالي». لا يمس أرصدة الأسر.</div></div>' +
+      '<div class="msg" id="waMsg" hidden></div><div class="actions"><button type="button" class="ghost" id="waCancel">إلغاء</button><button type="button" class="primary" id="waSave">حفظ</button></div></section>' +
+      // التفاصيل
+      '<section class="card" id="wlDet" hidden><div class="min-row" style="justify-content:space-between"><h2 style="margin:0" id="wdTitle"></h2><button type="button" class="link-btn" id="wdClose">إغلاق</button></div>' +
+      '<div class="row2" style="margin-top:8px"><div class="field"><label for="wdName">اسم الطالب</label><input id="wdName"></div>' +
+      '<div class="field"><label for="wdPhone">رقم الهاتف</label><input id="wdPhone" inputmode="tel"></div></div>' +
+      '<div class="row2"><div class="field"><label for="wdCourse">الدورة</label><select id="wdCourse" class="date-sel"></select></div>' +
+      '<div class="field"><label for="wdStatus">الحالة</label><select id="wdStatus" class="date-sel"></select></div></div>' +
+      '<div class="row2"><div class="field"><label for="wdDate">تاريخ التسجيل</label><input id="wdDate" type="date"></div><div class="field"><label>تواصل</label><a class="ghost small" id="wdWa" target="_blank" rel="noopener" style="display:block;text-align:center;padding:9px 0">💬 واتساب</a></div></div>' +
+      '<div class="field"><label for="wdNote">ملاحظات</label><textarea id="wdNote" rows="2"></textarea></div>' +
+      '<div class="note" id="wdStatusNote" hidden></div>' +
+      '<div class="msg" id="wdMsg" hidden></div><div class="actions"><button type="button" class="ghost" id="wdDel">🗑 حذف من القائمة</button><button type="button" class="primary" id="wdSave">حفظ التعديل</button></div>' +
+      // المال
+      '<div class="box"><h3>مبلغ الحجز</h3><div id="wdMoney"></div>' +
+      '<div class="seg" id="wpKind" style="margin-top:8px"><button type="button" class="on" data-wk="حجز">➕ دفعة حجز</button><button type="button" data-wk="استرداد">↩️ استرداد</button></div>' +
+      '<div class="row2"><div class="field"><label for="wpAmt">المبلغ</label><input id="wpAmt" inputmode="decimal" placeholder="0"></div>' +
+      '<div class="field"><label for="wpCur">العملة</label><select id="wpCur" class="date-sel"></select></div></div>' +
+      '<div class="row2"><div class="field"><label for="wpMethod">طريقة الدفع</label><select id="wpMethod" class="date-sel"></select></div>' +
+      '<div class="field"><label for="wpDate">التاريخ</label><input id="wpDate" type="date"></div></div>' +
+      '<div class="field"><label for="wpNote">ملاحظة (اختياري)</label><input id="wpNote" placeholder="مثال: رقم التحويل"></div>' +
+      '<div class="confirm" id="wpConfirm" hidden></div><div class="msg" id="wpMsg" hidden></div><div class="actions"><button type="button" class="primary" id="wpSave">تسجيل الدفعة</button></div></div>' +
+      // التحويل إلى طالب
+      '<div class="box" id="wcBox"><h3>تحويله إلى طالب</h3>' +
+      '<div class="note">سجّل الطالب أولًا من «تسجيل ونقل»، ثم اختر أسرته هنا. <button type="button" class="link-btn" id="wcReg">فتح «طالب جديد» ببياناته</button></div>' +
+      '<input id="wcQ" type="search" autocomplete="off" placeholder="ابحث باسم ولي الأمر أو المعرّف"><div id="wcRes"></div><div class="note" id="wcPicked" hidden></div>' +
+      '<label class="chk" id="wcTrWrap" hidden><input type="checkbox" id="wcTr" checked><span id="wcTrTxt"></span></label>' +
+      '<div class="confirm" id="wcConfirm" hidden></div><div class="msg" id="wcMsg" hidden></div><div class="actions"><button type="button" class="primary" id="wcSave">تحويله إلى طالب</button></div></div></section>' +
+      // الدورات
+      '<section class="card" id="wlCrs"><h2>الدورات</h2><div id="wlCrsList"></div>' +
+      '<div class="box"><h3 id="wkH">إضافة دورة</h3><div class="row2"><div class="field"><label for="wkName">اسم الدورة</label><input id="wkName" placeholder="مثال: دورة العروض للكبار"></div>' +
+      '<div class="field"><label for="wkState">الحالة</label><select id="wkState" class="date-sel"></select></div></div>' +
+      '<div class="field"><label for="wkNote">ملاحظة (اختياري)</label><input id="wkNote" placeholder="مثال: تبدأ حين يكتمل العدد 8"></div>' +
+      '<div class="msg" id="wkMsg" hidden></div><div class="actions"><button type="button" class="ghost" id="wkCancel" hidden>إلغاء التعديل</button><button type="button" class="primary" id="wkSave">إضافة الدورة</button></div></div></section>' +
+      '</div>');
+
+    $("wlCourses").addEventListener("click", function (e) { var b = e.target.closest("[data-wc]"); if (!b) return; wlCourse = b.getAttribute("data-wc"); wlRender(); });
+    $("wlViewSeg").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-wv]"); if (!b) return;
+      wlView = b.getAttribute("data-wv");
+      $("wlViewSeg").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      wlRender();
+    });
+    $("wlQ").addEventListener("input", wlRender);
+    $("wlList").addEventListener("click", function (e) { var r = e.target.closest("[data-we]"); if (r && !e.target.closest("a")) wlOpen(r.getAttribute("data-we")); });
+    $("wlAddBtn").addEventListener("click", wlAddOpen);
+    $("waCancel").addEventListener("click", function () { $("wlAdd").hidden = true; });
+    $("waSave").addEventListener("click", wlAddSave);
+    $("wlCopy").addEventListener("click", wlCopyPhones);
+    $("wdClose").addEventListener("click", function () { wlSel = null; $("wlDet").hidden = true; wlRender(); });
+    $("wdSave").addEventListener("click", wlEditSave);
+    $("wdDel").addEventListener("click", wlDelete);
+    $("wdStatus").addEventListener("change", wlStatusNote);
+    $("wpKind").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-wk]"); if (!b) return;
+      $("wpKind").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      wlKindUI(); wlDisarm();
+    });
+    ["wpAmt", "wpCur", "wpMethod", "wpDate", "wcTr"].forEach(function (k) { $(k).addEventListener("input", wlDisarm); $(k).addEventListener("change", wlDisarm); });
+    $("wpSave").addEventListener("click", wlPaySave);
+    $("wdMoney").addEventListener("click", function (e) { var b = e.target.closest("[data-wmd]"); if (b) wlPayDelete(b.getAttribute("data-wmd"), b); });
+    $("wcQ").addEventListener("input", wlFamHits);
+    $("wcRes").addEventListener("click", function (e) { var r = e.target.closest("[data-wf]"); if (r) wlFamPick(r.getAttribute("data-wf")); });
+    $("wcSave").addEventListener("click", wlConvert);
+    $("wcReg").addEventListener("click", wlToRegister);
+    $("wlCrsList").addEventListener("click", function (e) {
+      var ed = e.target.closest("[data-wke]"), dl = e.target.closest("[data-wkd]");
+      if (ed) wlCourseEditOpen(ed.getAttribute("data-wke"));
+      if (dl) wlCourseDelete(dl.getAttribute("data-wkd"), dl);
+    });
+    $("wkSave").addEventListener("click", wlCourseSave);
+    $("wkCancel").addEventListener("click", wlCourseEditReset);
+  })();
+
+  function loadWait(force) {
+    if (WL && !force) { wlRender(); return; }
+    if (!WL) $("wlList").innerHTML = '<div class="loading">جارٍ التحميل…</div>';
+    return api("wlInit", {}).then(function (d) {
+      WL = d;
+      var opts = function (arr) { return arr.map(function (x) { return "<option>" + esc(x) + "</option>"; }).join(""); };
+      $("wdStatus").innerHTML = opts(d.statuses);
+      $("wkState").innerHTML = opts(d.courseStates);
+      ["waCur", "wpCur"].forEach(function (k) { $(k).innerHTML = d.currencies.map(function (c) { return '<option value="' + esc(c) + '">' + (c === "$" ? "دولار ($)" : "جنيه (ج)") + "</option>"; }).join(""); });
+      ["waMethod", "wpMethod"].forEach(function (k) { $(k).innerHTML = opts(d.methods); });
+      if (d.warning) wlMsg("wlTopMsg", "⚠ " + d.warning, true);
+      if (wlSel) { wlSel = wlFind(wlSel.id); if (wlSel) wlFill(); else $("wlDet").hidden = true; }
+      wlRender(); wlCoursesRender();
+    }).catch(function (e) { $("wlList").innerHTML = '<div class="note">⚠ ' + esc(e.message) + "</div>"; });
+  }
+  function wlFind(id) { return WL ? WL.entries.filter(function (x) { return x.id === id; })[0] || null : null; }
+  function wlCourseName(id) { var c = WL.courses.filter(function (x) { return x.id === id; })[0]; return c ? c.name : ""; }
+  function wlFiltered() {
+    var q = norm($("wlQ").value), qd = String($("wlQ").value || "").replace(/\D/g, "");
+    return WL.entries.filter(function (e) {
+      if (wlCourse && e.courseId !== wlCourse) return false;
+      if (wlView === "active" && WL_ACTIVE.indexOf(e.status) === -1) return false;
+      if (wlView !== "active" && wlView !== "all" && e.status !== wlView) return false;
+      if (q && norm(e.name + " " + e.course).indexOf(q) === -1 && !(qd.length >= 3 && e.phone.indexOf(qd.replace(/^0/, "")) !== -1)) return false;
+      return true;
+    }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  }
+  function wlRender() {
+    if (!WL) return;
+    var act = WL.entries.filter(function (e) { return WL_ACTIVE.indexOf(e.status) !== -1; });
+    var held = { "ج": 0, "$": 0 };
+    WL.entries.forEach(function (e) { var n = wlNet(e); if (n > 0 && e.status !== "حُوِّل إلى طالب") held[e.currency === "$" ? "$" : "ج"] += n; });
+    $("wlKpis").innerHTML = kpi("في الانتظار", String(act.length), act.filter(function (e) { return e.status === "تم التواصل"; }).length + " تم التواصل معهم") +
+      kpi("حجوزات محتفَظ بها", wlMoney(held["ج"], "ج"), held["$"] ? "وبالدولار: " + wlMoney(held["$"], "$") : "للمنتظرين والمنسحبين بلا استرداد", "hl");
+    var cnt = {};
+    act.forEach(function (e) { cnt[e.courseId] = (cnt[e.courseId] || 0) + 1; });
+    $("wlCourses").innerHTML = '<button type="button" class="chip' + (wlCourse ? "" : " on") + '" data-wc="">كل الدورات</button>' +
+      WL.courses.filter(function (c) { return c.state === "مفتوحة" || cnt[c.id] || wlCourse === c.id; }).map(function (c) {
+        return '<button type="button" class="chip' + (wlCourse === c.id ? " on" : "") + '" data-wc="' + esc(c.id) + '">' + esc(c.name) + " (" + (cnt[c.id] || 0) + ")</button>";
+      }).join("");
+    var list = wlFiltered(), stc = function (s) { return "st" + Math.max(0, WL.statuses.indexOf(s)); };
+    $("wlList").innerHTML = list.length ? list.map(function (e, i) {
+      var n = wlNet(e);
+      return '<div class="wl-row' + (wlSel && wlSel.id === e.id ? " sel" : "") + '" data-we="' + esc(e.id) + '"><span><b>' + (wlView === "active" ? (i + 1) + ". " : "") + esc(e.name) + "</b>" +
+        (wlCourse ? "" : " — " + esc(e.course)) + '<br><small><a href="https://wa.me/' + esc(e.phone) + '" target="_blank" rel="noopener" dir="ltr">' + esc(e.phone) + "</a> · " + esc(e.date) +
+        (n ? " · حجز " + wlMoney(n, e.currency) : "") + (e.family ? " · " + esc(e.family) : "") + (e.note ? "<br>" + esc(e.note) : "") + "</small></span>" +
+        '<span class="wl-st ' + stc(e.status) + '">' + esc(e.status) + "</span></div>";
+    }).join("") : '<div class="note">' + (WL.courses.length ? "لا يوجد أحد في هذه القائمة." : "أضف الدورات أولًا من قسم «الدورات» أدناه، ثم أضف المنتظرين.") + "</div>";
+  }
+  function wlCopyPhones() {
+    if (!WL) return;
+    var list = wlFiltered();
+    if (!list.length) return;
+    var t = list.map(function (e) { return e.name + " — " + e.phone + (wlCourse ? "" : " — " + e.course); }).join("\n");
+    var done = function () { $("wlCopy").textContent = "✓ نُسخ " + list.length; setTimeout(function () { $("wlCopy").textContent = "📋 نسخ الأرقام"; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { window.prompt("انسخ الأرقام:", t); });
+    else window.prompt("انسخ الأرقام:", t);
+  }
+  function wlCourseOpts(sel, openOnly) {
+    return WL.courses.filter(function (c) { return !openOnly || c.state === "مفتوحة" || c.id === sel; }).map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === sel ? " selected" : "") + ">" + esc(c.name) + (c.state !== "مفتوحة" ? " (مغلقة)" : "") + "</option>";
+    }).join("");
+  }
+  function wlAddOpen() {
+    if (!WL) return;
+    if (!WL.courses.some(function (c) { return c.state === "مفتوحة"; })) { wlMsg("wlTopMsg", "لا توجد دورة مفتوحة. أضف دورة من قسم «الدورات» أدناه أولًا.", true); $("wkName").focus(); return; }
+    $("waCourse").innerHTML = wlCourseOpts(wlCourse, true);
+    ["waName", "waPhone", "waNote", "waAmt"].forEach(function (k) { $(k).value = ""; });
+    $("waDate").value = WL.today; $("waPayDate").value = WL.today;
+    wlMsg("waMsg", "");
+    $("wlAdd").hidden = false; $("wlDet").hidden = true; wlSel = null;
+    $("waName").focus(); $("wlAdd").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function wlAddSave() {
+    if (wlBusy) return;
+    var amt = $("waAmt").value.trim();
+    var body = { name: $("waName").value, phone: $("waPhone").value, courseId: $("waCourse").value, date: $("waDate").value, note: $("waNote").value };
+    if (amt) body.deposit = { amount: amt, currency: $("waCur").value, method: $("waMethod").value, date: $("waPayDate").value };
+    wlBusy = true; $("waSave").disabled = true; wlMsg("waMsg", "");
+    api("wlSave", body).then(function (r) {
+      $("wlAdd").hidden = true;
+      wlMsg("wlTopMsg", "✓ أُضيف " + r.entry.name + " إلى قائمة «" + r.entry.course + "»" + (r.entry.paid ? " مع حجز " + wlMoney(r.entry.paid, r.entry.currency) : "") + "." + (r.warning ? "\n⚠ " + r.warning : ""), !!r.warning);
+      return loadWait(true);
+    }).catch(function (e) { wlMsg("waMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("waSave").disabled = false; });
+  }
+  function wlOpen(id) {
+    wlSel = wlFind(id); if (!wlSel) return;
+    $("wlAdd").hidden = true; wlFam = null; $("wcQ").value = ""; $("wcRes").innerHTML = ""; $("wcPicked").hidden = true;
+    ["wdMsg", "wpMsg", "wcMsg"].forEach(function (k) { wlMsg(k, ""); });
+    $("wpAmt").value = ""; $("wpNote").value = ""; $("wpDate").value = WL.today;
+    wlFill(); wlRender();
+    $("wlDet").hidden = false; $("wlDet").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function wlFill() {
+    var e = wlSel;
+    $("wdTitle").textContent = e.name + " — " + e.course;
+    $("wdName").value = e.name; $("wdPhone").value = e.phone; $("wdDate").value = e.date; $("wdNote").value = e.note;
+    $("wdCourse").innerHTML = wlCourseOpts(e.courseId, true); $("wdStatus").value = e.status;
+    $("wdWa").href = "https://wa.me/" + e.phone;
+    $("wpCur").value = e.currency || "ج"; $("wpCur").disabled = !!(e.paid || e.out);
+    var n = wlNet(e), h = "";
+    h += '<div class="mv"><span>الصافي المحتفَظ به</span><b class="' + (n > 0 ? "pos" : "") + '">' + wlMoney(n, e.currency) + "</b><span></span></div>";
+    (e.moves || []).forEach(function (m) {
+      h += '<div class="mv"><span>' + esc(m.kind) + "<br><small>" + esc(m.date) + " · عن " + esc(m.month) + (m.method ? " · " + esc(m.method) : "") + (m.note ? " · " + esc(m.note) : "") + "</small></span>" +
+        '<b class="' + (m.amount < 0 ? "neg" : "pos") + '">' + wlMoney(m.amount, m.currency) + "</b>" +
+        (m.kind === "نقل إلى رصيد الأسرة" ? "<span></span>" : '<button type="button" class="ghost small" data-wmd="' + esc(m.id) + '" aria-label="حذف الحركة">🗑</button>') + "</div>";
+    });
+    if (!(e.moves || []).length) h += '<div class="note">لم يُدفع مبلغ للحجز.</div>';
+    $("wdMoney").innerHTML = h;
+    $("wdDel").hidden = !!(e.moves || []).length;
+    var conv = e.status === "حُوِّل إلى طالب";
+    $("wcBox").hidden = conv;
+    $("wcTrWrap").hidden = !(n > 0);
+    $("wcTrTxt").textContent = "نقل صافي الحجز (" + wlMoney(n, e.currency) + ") إلى رصيد الأسرة: تُسجَّل دفعة في «سجل المدفوعات» تُخصم من فاتورتها، وحركة سالبة هنا، فلا يُحسب المبلغ في الوارد مرتين.";
+    wlKindUI(); wlStatusNote(); wlDisarm();
+  }
+  function wlKindUI() {
+    var ref = $("wpKind").querySelector(".on").getAttribute("data-wk") === "استرداد";
+    $("wpSave").textContent = ref ? "تسجيل الاسترداد" : "تسجيل الدفعة";
+    if (ref && wlSel && !$("wpAmt").value) $("wpAmt").placeholder = String(Math.max(0, wlNet(wlSel)));
+    else $("wpAmt").placeholder = "0";
+  }
+  function wlStatusNote() {
+    if (!wlSel) return;
+    var s = $("wdStatus").value, n = wlNet(wlSel), t = "";
+    if (s === "انسحب" && n > 0) t = "عند الانسحاب: إن رُدّ المبلغ فسجّله «استرداد» في قسم مبلغ الحجز، وإن لم يُردّ يبقى داخلًا في الوارد.";
+    if (s === "حُوِّل إلى طالب" && wlSel.status !== s) t = "للتحويل إلى طالب استخدم قسم «تحويله إلى طالب» أدناه حتى يُربط بأسرته ويُنقل الحجز إلى رصيدها.";
+    $("wdStatusNote").hidden = !t; $("wdStatusNote").textContent = t;
+  }
+  function wlDisarm() { wlArm = ""; $("wpConfirm").hidden = true; $("wcConfirm").hidden = true; }
+  function wlAfter(r, msgId, txt) {
+    wlMsg(msgId, txt + (r && r.warning ? "\n⚠ " + r.warning : ""), !!(r && r.warning));
+    return loadWait(true);
+  }
+  function wlEditSave() {
+    if (wlBusy || !wlSel) return;
+    if ($("wdStatus").value === "حُوِّل إلى طالب" && wlSel.status !== "حُوِّل إلى طالب") { wlMsg("wdMsg", "⚠ استخدم قسم «تحويله إلى طالب» أدناه.", true); return; }
+    wlBusy = true; $("wdSave").disabled = true;
+    api("wlSave", { id: wlSel.id, name: $("wdName").value, phone: $("wdPhone").value, courseId: $("wdCourse").value, status: $("wdStatus").value, date: $("wdDate").value, note: $("wdNote").value })
+      .then(function (r) { return wlAfter(r, "wdMsg", "✓ حُفظ التعديل."); })
+      .catch(function (e) { wlMsg("wdMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("wdSave").disabled = false; });
+  }
+  function wlDelete() {
+    if (wlBusy || !wlSel) return;
+    if (wlArm !== "del") { wlArm = "del"; $("wdDel").textContent = "تأكيد الحذف"; setTimeout(function () { if (wlArm === "del") { wlArm = ""; $("wdDel").textContent = "🗑 حذف من القائمة"; } }, 5000); return; }
+    wlArm = ""; wlBusy = true; $("wdDel").disabled = true;
+    api("wlDelete", { id: wlSel.id }).then(function () {
+      wlSel = null; $("wlDet").hidden = true; wlMsg("wlTopMsg", "✓ حُذف من القائمة.");
+      return loadWait(true);
+    }).catch(function (e) { wlMsg("wdMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("wdDel").disabled = false; $("wdDel").textContent = "🗑 حذف من القائمة"; });
+  }
+  function wlPaySave() {
+    if (wlBusy || !wlSel) return;
+    var kind = $("wpKind").querySelector(".on").getAttribute("data-wk"), amt = $("wpAmt").value.trim() || (kind === "استرداد" ? $("wpAmt").placeholder : "");
+    var cur = $("wpCur").value, n = Number(String(amt).replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 0x0660; }));
+    if (!(n > 0)) { wlMsg("wpMsg", "⚠ اكتب المبلغ.", true); return; }
+    if (wlArm !== "pay") {
+      wlArm = "pay";
+      $("wpConfirm").textContent = (kind === "حجز" ? "سيُسجَّل حجز " + wlMoney(n, cur) + " لـ" + wlSel.name + " ويُضاف إلى وارد شهر الدفع." :
+        "سيُسجَّل استرداد " + wlMoney(n, cur) + " لـ" + wlSel.name + " ويُطرح من وارد شهر الاسترداد" + (n >= wlNet(wlSel) && wlSel.status !== "حُوِّل إلى طالب" ? "، وتصير حالته «انسحب»" : "") + ".") + " اضغط مرة أخرى للتأكيد.";
+      $("wpConfirm").hidden = false; $("wpSave").textContent = "تأكيد"; return;
+    }
+    wlArm = ""; wlBusy = true; $("wpSave").disabled = true;
+    api("wlPay", { id: wlSel.id, kind: kind, amount: amt, currency: cur, method: $("wpMethod").value, date: $("wpDate").value, note: $("wpNote").value })
+      .then(function (r) { $("wpAmt").value = ""; $("wpNote").value = ""; return wlAfter(r, "wpMsg", "✓ سُجّل " + kind + " " + wlMoney(n, cur) + "."); })
+      .catch(function (e) { wlMsg("wpMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("wpSave").disabled = false; $("wpConfirm").hidden = true; wlKindUI(); });
+  }
+  function wlPayDelete(id, btn) {
+    if (wlBusy) return;
+    if (wlArm !== "mv" + id) { wlArm = "mv" + id; btn.textContent = "تأكيد الحذف"; return; }
+    wlArm = ""; wlBusy = true; btn.disabled = true;
+    api("wlPayDelete", { moveId: id }).then(function (r) { return wlAfter(r, "wpMsg", "✓ حُذفت الحركة."); })
+      .catch(function (e) { wlMsg("wpMsg", "⚠ " + e.message, true); btn.disabled = false; btn.textContent = "🗑"; })
+      .then(function () { wlBusy = false; });
+  }
+  function wlFamHits() {
+    var q = norm($("wcQ").value), box = $("wcRes");
+    if (!q || !WL) { box.innerHTML = ""; return; }
+    var hits = WL.families.filter(function (f) { return norm(f.name + " " + f.id).indexOf(q) !== -1; }).slice(0, 8);
+    box.innerHTML = hits.length ? hits.map(function (f) { return '<div class="hit" data-wf="' + esc(f.id) + '"><b>' + esc(f.name) + "</b> <small>" + esc(f.id) + "</small></div>"; }).join("") : '<div class="note">لا توجد أسرة بهذا الاسم. سجّل الطالب أولًا من «تسجيل ونقل».</div>';
+  }
+  function wlFamPick(id) {
+    wlFam = WL.families.filter(function (f) { return f.id === id; })[0] || null;
+    $("wcRes").innerHTML = ""; $("wcQ").value = "";
+    $("wcPicked").hidden = !wlFam; if (wlFam) $("wcPicked").innerHTML = "✓ الأسرة: <b>" + esc(wlFam.name) + "</b> — " + esc(wlFam.id);
+    wlDisarm();
+  }
+  function wlConvert() {
+    if (wlBusy || !wlSel) return;
+    if (!wlFam) { wlMsg("wcMsg", "⚠ اختر الأسرة أولًا.", true); return; }
+    var n = wlNet(wlSel), tr = n > 0 && $("wcTr").checked;
+    if (wlArm !== "conv") {
+      wlArm = "conv";
+      $("wcConfirm").textContent = "ستصير حالة " + wlSel.name + " «حُوِّل إلى طالب» ويُربط بأسرة " + wlFam.name + "." +
+        (tr ? " وتُسجَّل دفعة " + wlMoney(n, wlSel.currency) + " باسم الأسرة في «سجل المدفوعات» عن الشهر المالي الحالي." : n > 0 ? " ويبقى الحجز (" + wlMoney(n, wlSel.currency) + ") في الوارد دون خصمه من فاتورة الأسرة." : "") + " اضغط مرة أخرى للتأكيد.";
+      $("wcConfirm").hidden = false; $("wcSave").textContent = "تأكيد"; return;
+    }
+    wlArm = ""; wlBusy = true; $("wcSave").disabled = true;
+    api("wlConvert", { id: wlSel.id, family: wlFam.id, transfer: tr })
+      .then(function (r) { return wlAfter(r, "wdMsg", "✓ حُوِّل إلى طالب" + (r.transferred ? " ونُقل " + wlMoney(r.transferred, wlSel.currency) + " إلى رصيد الأسرة" : "") + "."); })
+      .catch(function (e) { wlMsg("wcMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("wcSave").disabled = false; $("wcSave").textContent = "تحويله إلى طالب"; $("wcConfirm").hidden = true; });
+  }
+  function wlToRegister() {
+    if (!wlSel) return;
+    var e = wlSel, b = document.querySelector('[data-atab="students"]');
+    if (!b) return;
+    b.click();
+    var fill = function () {
+      try { stMode("new"); } catch (x) {}
+      if ($("snName")) $("snName").value = e.name;
+      if ($("snPhone")) $("snPhone").value = e.phone;
+    };
+    fill(); setTimeout(fill, 1500);
+  }
+  function wlCoursesRender() {
+    if (!WL) return;
+    var cnt = {};
+    WL.entries.forEach(function (e) { if (WL_ACTIVE.indexOf(e.status) !== -1) cnt[e.courseId] = (cnt[e.courseId] || 0) + 1; });
+    $("wlCrsList").innerHTML = WL.courses.length ? WL.courses.map(function (c) {
+      return '<div class="crow"><span><b>' + esc(c.name) + "</b> " + (c.state === "مفتوحة" ? '<span class="wl-st st2">مفتوحة</span>' : '<span class="wl-st st3">مغلقة</span>') +
+        "<br><small>" + (cnt[c.id] || 0) + " في الانتظار" + (c.note ? " · " + esc(c.note) : "") + "</small></span>" +
+        '<span style="white-space:nowrap"><button type="button" class="ghost small" data-wke="' + esc(c.id) + '" aria-label="تعديل">✏️</button> <button type="button" class="ghost small" data-wkd="' + esc(c.id) + '" aria-label="حذف">🗑</button></span></div>';
+    }).join("") : '<div class="note">لا توجد دورات بعد. أضف أول دورة من النموذج أدناه.</div>';
+  }
+  function wlCourseEditOpen(id) {
+    var c = WL.courses.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    wlCourseEdit = id; $("wkName").value = c.name; $("wkState").value = c.state; $("wkNote").value = c.note || "";
+    $("wkH").textContent = "تعديل دورة"; $("wkSave").textContent = "حفظ التعديل"; $("wkCancel").hidden = false; wlMsg("wkMsg", "");
+    $("wkName").focus();
+  }
+  function wlCourseEditReset() {
+    wlCourseEdit = ""; $("wkName").value = ""; $("wkNote").value = ""; $("wkState").value = "مفتوحة";
+    $("wkH").textContent = "إضافة دورة"; $("wkSave").textContent = "إضافة الدورة"; $("wkCancel").hidden = true;
+  }
+  function wlCourseSave() {
+    if (wlBusy) return;
+    wlBusy = true; $("wkSave").disabled = true;
+    var editing = !!wlCourseEdit;
+    api("wlCourseSave", { id: wlCourseEdit, name: $("wkName").value, state: $("wkState").value, note: $("wkNote").value })
+      .then(function (r) { wlCourseEditReset(); wlMsg("wkMsg", editing ? "✓ حُفظ تعديل الدورة." : "✓ أُضيفت دورة «" + r.course.name + "»."); return loadWait(true); })
+      .catch(function (e) { wlMsg("wkMsg", "⚠ " + e.message, true); })
+      .then(function () { wlBusy = false; $("wkSave").disabled = false; });
+  }
+  function wlCourseDelete(id, btn) {
+    if (wlBusy) return;
+    if (wlArm !== "crs" + id) { wlArm = "crs" + id; btn.textContent = "تأكيد الحذف"; return; }
+    wlArm = ""; wlBusy = true; btn.disabled = true;
+    api("wlCourseDelete", { id: id }).then(function () { if (wlCourse === id) wlCourse = ""; wlMsg("wkMsg", "✓ حُذفت الدورة."); return loadWait(true); })
+      .catch(function (e) { wlMsg("wkMsg", "⚠ " + e.message, true); btn.disabled = false; btn.textContent = "🗑"; })
+      .then(function () { wlBusy = false; });
+  }
+
   document.querySelectorAll("[data-atab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var t = b.getAttribute("data-atab");
       document.querySelectorAll("[data-atab]").forEach(function (x) { x.classList.toggle("on", x === b); });
-      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments" || t === "students" || t === "status";
+      var own = t === "arch" || t === "evals" || t === "invoices" || t === "holidays" || t === "payments" || t === "students" || t === "status" || t === "waitlist";
       $("aSum").hidden = own; $("aArch").hidden = t !== "arch"; $("aEvals").hidden = t !== "evals"; $("aInvoices").hidden = t !== "invoices"; $("aHol").hidden = t !== "holidays";
       if ($("aPay")) $("aPay").hidden = t !== "payments";
       if (t === "holidays") loadHolidays();
@@ -2510,6 +2879,8 @@
       if (t === "students") loadStu();
       if ($("aZ")) $("aZ").hidden = t !== "status";
       if (t === "status") loadZ();
+      if ($("aWl")) $("aWl").hidden = t !== "waitlist";
+      if (t === "waitlist") loadWait();
       $("aMonth").hidden = own; $("aFresh").hidden = own;
       if (t === "evals") loadEvals();
       if (t === "invoices") { loadInvoices(); loadReady(); }

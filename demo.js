@@ -44,6 +44,56 @@
       { id: "س.0003", name: "أسرة ثانية", invoice: 40, previous: 0, paid: 0, remaining: 40, status: "لم يدفع", usd: true, payments: [] }],
     find: function (id) { return PAYS.fams.filter(function (f) { return f.id === id; })[0]; },
     status: function (id) { var f = PAYS.find(id); return { ok: true, id: id, found: true, name: f.name, invoice: f.invoice, paid: f.paid, remaining: f.remaining, previous: f.previous, status: f.status, usd: f.usd, payments: f.payments.slice(0, 5) }; } };
+  // قوائم الانتظار (وهمية)
+  var WLD = { n: 3, courses: [{ id: "d1", name: "دورة العروض للكبار", state: "مفتوحة", note: "تبدأ حين يكتمل العدد 8" }, { id: "d2", name: "دورة الخط العربي", state: "مفتوحة", note: "" }, { id: "d3", name: "دورة الإلقاء (الصيف)", state: "مغلقة", note: "" }],
+    entries: [
+      { id: "w1", name: "يوسف أحمد", phone: "201012345678", courseId: "d1", course: "دورة العروض للكبار", status: "منتظر", date: "2026-11-02", paid: 200, out: 0, currency: "ج", family: "", note: "يفضّل المساء",
+        moves: [{ id: "m1", month: "نوفمبر 2026", date: "2026-11-02", kind: "حجز", amount: 200, currency: "ج", method: "فودافون كاش", note: "" }] },
+      { id: "w2", name: "مريم خالد", phone: "201112223333", courseId: "d1", course: "دورة العروض للكبار", status: "تم التواصل", date: "2026-11-05", paid: 0, out: 0, currency: "ج", family: "", note: "", moves: [] },
+      { id: "w3", name: "عمر سامي", phone: "966501234567", courseId: "d2", course: "دورة الخط العربي", status: "منتظر", date: "2026-11-10", paid: 20, out: 0, currency: "$", family: "", note: "",
+        moves: [{ id: "m2", month: "نوفمبر 2026", date: "2026-11-10", kind: "حجز", amount: 20, currency: "$", method: "تحويل بنكي", note: "" }] }] };
+  WLD.find = function (id) { var e = WLD.entries.filter(function (x) { return x.id === id; })[0]; if (!e) throw new Error("غير موجود"); return e; };
+  WLD.recalc = function (e) { e.paid = 0; e.out = 0; e.moves.forEach(function (m) { if (m.amount > 0) e.paid += m.amount; else e.out -= m.amount; }); };
+  WLD.call = function (p) {
+    var c, e;
+    if (p.action === "wlInit") return { ok: true, warning: "", courses: WLD.courses, entries: WLD.entries, statuses: ["منتظر", "تم التواصل", "حُوِّل إلى طالب", "انسحب"], courseStates: ["مفتوحة", "مغلقة"],
+      currencies: ["ج", "$"], methods: ["تحويل بنكي", "فودافون كاش", "إنستاباي", "نقدي", "أخرى"], today: key(today), families: PAYS.fams.map(function (f) { return { id: f.id, name: f.name }; }) };
+    if (p.action === "wlCourseSave") {
+      if (!String(p.name || "").trim()) throw new Error("اكتب اسم الدورة.");
+      if (p.id) { c = WLD.courses.filter(function (x) { return x.id === p.id; })[0]; c.name = p.name; c.state = p.state; c.note = p.note; WLD.entries.forEach(function (x) { if (x.courseId === c.id) x.course = c.name; }); }
+      else { c = { id: "d" + (++WLD.n), name: p.name, state: p.state, note: p.note }; WLD.courses.push(c); }
+      return { ok: true, course: c };
+    }
+    if (p.action === "wlCourseDelete") {
+      if (WLD.entries.some(function (x) { return x.courseId === p.id; })) throw new Error("في هذه الدورة طلاب في قائمة الانتظار. اجعلها «مغلقة» بدل حذفها.");
+      WLD.courses = WLD.courses.filter(function (x) { return x.id !== p.id; }); return { ok: true };
+    }
+    if (p.action === "wlSave") {
+      if (!String(p.name || "").trim()) throw new Error("اكتب اسم الطالب.");
+      if (!String(p.phone || "").replace(/\D/g, "")) throw new Error("اكتب رقم الهاتف.");
+      c = WLD.courses.filter(function (x) { return x.id === p.courseId; })[0];
+      if (p.id) { e = WLD.find(p.id); e.name = p.name; e.phone = String(p.phone).replace(/\D/g, ""); e.courseId = c.id; e.course = c.name; e.status = p.status; e.date = p.date; e.note = p.note; return { ok: true, entry: e }; }
+      e = { id: "w" + (++WLD.n), name: p.name, phone: String(p.phone).replace(/\D/g, "").replace(/^01/, "201"), courseId: c.id, course: c.name, status: "منتظر", date: p.date, paid: 0, out: 0, currency: "ج", family: "", note: p.note || "", moves: [] };
+      if (p.deposit && Number(p.deposit.amount) > 0) { e.currency = p.deposit.currency; e.moves.push({ id: "m" + (++WLD.n), month: "نوفمبر 2026", date: p.deposit.date, kind: "حجز", amount: Number(p.deposit.amount), currency: e.currency, method: p.deposit.method, note: "" }); WLD.recalc(e); }
+      WLD.entries.push(e); return { ok: true, entry: e, warning: "" };
+    }
+    if (p.action === "wlDelete") { WLD.entries = WLD.entries.filter(function (x) { return x.id !== p.id; }); return { ok: true }; }
+    if (p.action === "wlPay") {
+      e = WLD.find(p.id); var a = Number(p.amount);
+      if (p.kind === "استرداد" && a > e.paid - e.out) throw new Error("لا يصح استرداد أكثر من المتبقي من الحجز.");
+      e.currency = p.currency; e.moves.push({ id: "m" + (++WLD.n), month: "نوفمبر 2026", date: p.date, kind: p.kind, amount: p.kind === "حجز" ? a : -a, currency: e.currency, method: p.method, note: p.note }); WLD.recalc(e);
+      if (p.kind === "استرداد" && e.paid - e.out <= 0) e.status = "انسحب";
+      return { ok: true, entry: e, warning: "" };
+    }
+    if (p.action === "wlPayDelete") { WLD.entries.forEach(function (x) { x.moves = x.moves.filter(function (m) { return m.id !== p.moveId; }); WLD.recalc(x); }); return { ok: true }; }
+    if (p.action === "wlConvert") {
+      e = WLD.find(p.id); var net = e.paid - e.out;
+      if (p.transfer && net > 0) e.moves.push({ id: "m" + (++WLD.n), month: "نوفمبر 2026", date: key(today), kind: "نقل إلى رصيد الأسرة", amount: -net, currency: e.currency, method: "رصيد الأسرة", note: p.family });
+      WLD.recalc(e); e.status = "حُوِّل إلى طالب"; e.family = p.family;
+      return { ok: true, entry: e, warning: "", transferred: p.transfer ? net : 0 };
+    }
+    throw new Error("عملية غير معروفة");
+  };
   window.PORTAL_DEMO = function (p) {
     return new Promise(function (ok) {
       setTimeout(function () {
@@ -95,6 +145,7 @@
           if (p.action === "paySave" && !p.force && PAYS.find(p.familyId).payments.some(function (x) { return x.month === p.month && x.amount === Number(p.amount); })) return ok(Promise.reject(new Error("DUP:بتاريخ 05/10/2026")));
           if (p.action === "paySave") { var pf = PAYS.find(p.familyId); pf.paid += Number(p.amount); pf.remaining = Math.max(0, pf.invoice + pf.previous - pf.paid); pf.status = pf.remaining ? "دفع جزئي" : "تم السداد";
             pf.payments.unshift({ date: fmt(today), amount: Number(p.amount), month: p.month, method: p.method, notes: p.notes }); return ok(PAYS.status(p.familyId)); }
+          if (/^wl/.test(p.action)) { try { return ok(WLD.call(p)); } catch (err) { return ok(Promise.reject(err)); } }
           if (p.action === "search") return ok({ ok: true, reports: [{ date: key(today), teacher: "أ. معلم تجريبي", unit: "طالب تجريبي أول", status: "حضر", minutes: "60", studied: "قصيدة الأطلال.", homework: "حفظ خمسة أبيات.", by: "المعلم" }] });
         }
         if (p.action === "init") {
